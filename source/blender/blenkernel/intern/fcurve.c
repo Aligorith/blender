@@ -313,8 +313,9 @@ FCurve *rna_get_fcurve(PointerRNA *ptr, PropertyRNA *prop, int rnaindex, bAction
 	FCurve *fcu = NULL;
 	
 	*r_driven = false;
+	if (action) *action = NULL;
 	
-	/* there must be some RNA-pointer + property combon */
+	/* there must be some RNA-pointer + property combo */
 	if (prop && ptr->id.data && RNA_property_animateable(ptr, prop)) {
 		AnimData *adt = BKE_animdata_from_id(ptr->id.data);
 		char *path;
@@ -326,8 +327,12 @@ FCurve *rna_get_fcurve(PointerRNA *ptr, PropertyRNA *prop, int rnaindex, bAction
 				
 				if (path) {
 					/* animation takes priority over drivers */
-					if (adt->action && adt->action->curves.first)
+					if (adt->action && adt->action->curves.first) {
 						fcu = list_find_fcurve(&adt->action->curves, path, rnaindex);
+						
+						if (fcu && action)
+							*action = adt->action;
+					}
 					
 					/* if not animated, check if driven */
 					if (!fcu && (adt->drivers.first)) {
@@ -337,8 +342,7 @@ FCurve *rna_get_fcurve(PointerRNA *ptr, PropertyRNA *prop, int rnaindex, bAction
 							*r_driven = true;
 					}
 					
-					if (fcu && action)
-						*action = adt->action;
+					
 					
 					MEM_freeN(path);
 				}
