@@ -308,11 +308,14 @@ int list_find_data_fcurves(ListBase *dst, ListBase *src, const char *dataPrefix,
 	return matches;
 }
 
-FCurve *rna_get_fcurve(PointerRNA *ptr, PropertyRNA *prop, int rnaindex, bAction **action, bool *r_driven)
+FCurve *rna_get_fcurve(PointerRNA *ptr, PropertyRNA *prop, int rnaindex, 
+                       bAction **action, bool *r_driven, bool *r_special)
 {
 	FCurve *fcu = NULL;
 	
 	*r_driven = false;
+	*r_special = false;
+	
 	if (action) *action = NULL;
 	
 	/* there must be some RNA-pointer + property combo */
@@ -325,6 +328,7 @@ FCurve *rna_get_fcurve(PointerRNA *ptr, PropertyRNA *prop, int rnaindex, bAction
 				/* XXX this function call can become a performance bottleneck */
 				path = RNA_path_from_ID_to_property(ptr, prop);
 				
+				// XXX: the logic here is duplicated with a function up above
 				if (path) {
 					/* animation takes priority over drivers */
 					if (adt->action && adt->action->curves.first) {
@@ -342,9 +346,33 @@ FCurve *rna_get_fcurve(PointerRNA *ptr, PropertyRNA *prop, int rnaindex, bAction
 							*r_driven = true;
 					}
 					
-					
-					
 					MEM_freeN(path);
+				}
+			}
+			
+			/* if we still haven't found anything, check whether it's a "special" property */
+			if ((fcu == NULL) && (adt->nla_tracks.first)) {
+				NlaTrack *nlt;
+				const char *propname = RNA_property_identifier(prop);
+				
+				for (nlt = adt->nla_tracks.first; nlt; nlt = nlt->next) {
+					NlaStrip *strip;
+					
+					if (fcu)
+						break;
+					
+					/* FIXME: need to do recursive search here for correctness, 
+					 * but this will do for most use cases (i.e. interactive editing),
+					 * where nested strips can't be easily edited
+					 */
+					for (strip = nlt->strips.first; strip; strip = strip->next) {
+						fcu = list_find_fcurve(&strip->fcurves, propname, rnaindex);
+					
+						if (fcu) {
+							*r_special = true;
+							break;
+						}
+					}
 				}
 			}
 		}
