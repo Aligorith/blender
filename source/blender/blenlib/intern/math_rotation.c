@@ -732,10 +732,34 @@ float tri_to_quat(float quat[4], const float v1[3], const float v2[3], const flo
 
 void quad_to_quat(float quat[4], const float v1[3], const float v2[3], const float v3[3], const float v4[3])
 {
-	float vec[3];
+	float n1[3], n2[3], quad_n[3];
+	float angle1, angle2;
 	
-	normal_quad_v3(vec, v1, v2, v3, v4);
-	tri_to_quat_ex(quat, v1, v2, v3, vec); // XXX: although we've got 4 verts, it only really uses the first 2
+	/* calculate the quad rotation using the triangle whose normal is
+	 * "closest" to the quad's true rotation, since that should hopefully
+	 * act as our closest approximation of the true normal
+	 */
+	normal_quad_v3(quad_n, v1, v2, v3, v4);
+	
+	normal_tri_v3(n1, v1, v2, v3);
+	normal_tri_v3(n2, v1, v3, v4);
+	
+	angle1 = dot_v3v3(quad_n, n1);
+	angle2 = dot_v3v3(quad_n, n2);
+	
+	if (fabsf(angle1) < fabsf(angle2)) {
+		tri_to_quat_ex(quat, v1, v2, v3, n1);
+	}
+	else {
+		tri_to_quat_ex(quat, v1, v3, v4, n2);
+	}
+	
+	
+	print_v3("quad_n", quad_n);
+	printf("angle1 = %f   : ", angle1); print_v3("n1", n1);
+	printf("angle2 = %f   : ", angle2); print_v3("n2", n2);
+	print_qt("result", quat);
+	printf("=============\n\n");
 }
 
 void print_qt(const char *str, const float q[4])
