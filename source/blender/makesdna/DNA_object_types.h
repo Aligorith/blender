@@ -119,7 +119,8 @@ typedef struct Object {
 	struct SculptSession *sculpt;
 	
 	short type, partype;
-	int par1, par2, par3;	/* can be vertexnrs */
+	int par1, par2, par3, par4;	/* can be vertexnrs */
+	int pad1;
 	char parsubstr[64];	/* String describing subobject info, MAX_ID_NAME-2 */
 	struct Object *parent, *track;
 	/* if ob->proxy (or proxy_group), this object is proxy for object ob->proxy */
@@ -385,6 +386,7 @@ enum {
 	PARVERT1      = 5,
 	PARVERT3      = 6,
 	PARBONE       = 7,
+	PARVERT4      = 8,
 
 	/* slow parenting - is not threadsafe and/or may give errors after jumping  */
 	PARSLOW       = 16,

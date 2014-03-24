@@ -730,6 +730,14 @@ float tri_to_quat(float quat[4], const float v1[3], const float v2[3], const flo
 	return len;
 }
 
+void quad_to_quat(float quat[4], const float v1[3], const float v2[3], const float v3[3], const float v4[3])
+{
+	float vec[3];
+	
+	normal_quad_v3(vec, v1, v2, v3, v4);
+	tri_to_quat_ex(quat, v1, v2, v3, vec); // XXX: although we've got 4 verts, it only really uses the first 2
+}
+
 void print_qt(const char *str, const float q[4])
 {
 	printf("%s: %.3f %.3f %.3f %.3f\n", str, q[0], q[1], q[2], q[3]);

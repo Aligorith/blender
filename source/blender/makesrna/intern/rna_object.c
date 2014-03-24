@@ -91,6 +91,7 @@ static EnumPropertyItem parent_type_items[] = {
 	{PARSKEL, "LATTICE", 0, "Lattice", "The object is parented to a lattice"}, /* PARSKEL reuse will give issues */
 	{PARVERT1, "VERTEX", 0, "Vertex", "The object is parented to a vertex"},
 	{PARVERT3, "VERTEX_3", 0, "3 Vertices", ""},
+	{PARVERT4, "VERTEX_4", 0, "4 Vertices", ""},
 	{PARBONE, "BONE", 0, "Bone", "The object is parented to a bone"},
 	{0, NULL, 0, NULL, NULL}
 };

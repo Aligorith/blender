@@ -587,11 +587,12 @@ EnumPropertyItem prop_make_parent_types[] = {
 	{PAR_LATTICE, "LATTICE", 0, "Lattice Deform", ""},
 	{PAR_VERTEX, "VERTEX", 0, "Vertex", ""},
 	{PAR_VERTEX_TRI, "VERTEX_TRI", 0, "Vertex (Triangle)", ""},
+	{PAR_VERTEX_QUAD, "VERTEX_QUAD", 0, "Vertex (Quad)", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
 int ED_object_parent_set(ReportList *reports, Main *bmain, Scene *scene, Object *ob, Object *par,
-                         int partype, bool xmirror, bool keep_transform, const int vert_par[3])
+                         int partype, bool xmirror, bool keep_transform, const int vert_par[4])
 {
 	bPoseChannel *pchan = NULL;
 	int pararm = ELEM4(partype, PAR_ARMATURE, PAR_ARMATURE_NAME, PAR_ARMATURE_ENVELOPE, PAR_ARMATURE_AUTO);
@@ -728,6 +729,10 @@ int ED_object_parent_set(ReportList *reports, Main *bmain, Scene *scene, Object 
 				ob->partype = PARVERT3;
 				copy_v3_v3_int(&ob->par1, vert_par);
 			}
+			else if (partype == PAR_VERTEX_QUAD) {
+				ob->partype = PARVERT4;
+				copy_v4_v4_int(&ob->par1, vert_par);
+			}
 			else {
 				ob->partype = PAROBJECT;  /* note, dna define, not operator property */
 			}
@@ -779,7 +784,7 @@ int ED_object_parent_set(ReportList *reports, Main *bmain, Scene *scene, Object 
 
 
 
-static void parent_set_vert_find(KDTree *tree, Object *child, int vert_par[3], bool is_tri)
+static void parent_set_vert_find(KDTree *tree, Object *child, int vert_par[4], bool is_tri, bool is_quad)
 {
 	const float *co_find = child->obmat[3];
 	if (is_tri) {
@@ -792,14 +797,30 @@ static void parent_set_vert_find(KDTree *tree, Object *child, int vert_par[3], b
 		vert_par[0] = nearest[0].index;
 		vert_par[1] = nearest[1].index;
 		vert_par[2] = nearest[2].index;
+		vert_par[3] = 0;
 
 		BLI_assert(min_iii(UNPACK3(vert_par)) >= 0);
+	}
+	else if (is_quad) {
+		KDTreeNearest nearest[4];
+		int tot;
+		
+		tot = BLI_kdtree_find_nearest_n(tree, co_find, nearest, 4);
+		BLI_assert(tot == 4);
+		
+		vert_par[0] = nearest[0].index;
+		vert_par[1] = nearest[1].index;
+		vert_par[2] = nearest[2].index;
+		vert_par[3] = nearest[3].index;
+		
+		BLI_assert(min_iiii(UNPACK4(vert_par)) >= 0);
 	}
 	else {
 		vert_par[0] = BLI_kdtree_find_nearest(tree, co_find, NULL);
 		BLI_assert(vert_par[0] >= 0);
 		vert_par[1] = 0;
 		vert_par[2] = 0;
+		vert_par[3] = 0;
 	}
 }
 
@@ -814,20 +835,31 @@ static int parent_set_exec(bContext *C, wmOperator *op)
 	bool ok = true;
 
 	/* vertex parent (kdtree) */
-	const bool is_vert_par = ELEM(partype, PAR_VERTEX, PAR_VERTEX_TRI);
-	const bool is_tri = partype == PAR_VERTEX_TRI;
+	const bool is_vert_par = ELEM3(partype, PAR_VERTEX, PAR_VERTEX_TRI, PAR_VERTEX_QUAD);
+	const bool is_tri  = (partype == PAR_VERTEX_TRI);
+	const bool is_quad = (partype == PAR_VERTEX_QUAD);
 	int tree_tot;
 	struct KDTree *tree = NULL;
-	int vert_par[3] = {0, 0, 0};
+	int vert_par[4] = {0, 0, 0, 0};
 	int *vert_par_p = is_vert_par ? vert_par : NULL;
 
 
 	if (is_vert_par) {
+		int min_verts_needed;
+		
 		tree = BKE_object_as_kdtree(par, &tree_tot);
 		BLI_assert(tree != NULL);
-
-		if (tree_tot < (is_tri ? 3 : 1)) {
-			BKE_report(op->reports, RPT_ERROR, "Not enough vertices for vertex-parent");
+		
+		if (is_tri)
+			min_verts_needed = 3;
+		else if (is_quad)
+			min_verts_needed = 4;
+		else
+			min_verts_needed = 1;
+		
+		if (tree_tot < min_verts_needed) {
+			BKE_reportf(op->reports, RPT_ERROR, "Not enough vertices for vertex-parent (need %d but found %d)",
+			            min_verts_needed, tree_tot);
 			ok = false;
 			goto cleanup;
 		}
@@ -838,7 +870,7 @@ static int parent_set_exec(bContext *C, wmOperator *op)
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
 		if (is_vert_par) {
-			parent_set_vert_find(tree, ob, vert_par, is_tri);
+			parent_set_vert_find(tree, ob, vert_par, is_tri, is_quad);
 		}
 
 		if (!ED_object_parent_set(op->reports, bmain, scene, ob, par, partype, xmirror, keep_transform, vert_par_p)) {
@@ -908,6 +940,7 @@ static int parent_set_invoke(bContext *C, wmOperator *UNUSED(op), const wmEvent 
 	if (OB_TYPE_SUPPORT_PARVERT(ob->type)) {
 		uiItemEnumO_ptr(layout, ot, NULL, 0, "type", PAR_VERTEX);
 		uiItemEnumO_ptr(layout, ot, NULL, 0, "type", PAR_VERTEX_TRI);
+		uiItemEnumO_ptr(layout, ot, NULL, 0, "type", PAR_VERTEX_QUAD);
 	}
 
 	uiPupMenuEnd(C, pup);

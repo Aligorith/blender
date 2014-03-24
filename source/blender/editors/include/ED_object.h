@@ -93,7 +93,8 @@ typedef enum eParentType {
 	PAR_PATH_CONST,
 	PAR_LATTICE,
 	PAR_VERTEX,
-	PAR_VERTEX_TRI
+	PAR_VERTEX_TRI,
+	PAR_VERTEX_QUAD
 } eParentType;
 
 #ifdef __RNA_TYPES_H__

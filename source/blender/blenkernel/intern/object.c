@@ -2192,7 +2192,6 @@ static void give_parvert(Object *par, int nr, float vec[3])
 
 static void ob_parvert3(Object *ob, Object *par, float mat[4][4])
 {
-
 	/* in local ob space */
 	if (OB_TYPE_SUPPORT_PARVERT(par->type)) {
 		float cmat[3][3], v1[3], v2[3], v3[3], q[4];
@@ -2206,6 +2205,30 @@ static void ob_parvert3(Object *ob, Object *par, float mat[4][4])
 		copy_m4_m3(mat, cmat);
 
 		mid_v3_v3v3v3(mat[3], v1, v2, v3);
+	}
+	else {
+		unit_m4(mat);
+	}
+}
+
+static void ob_parvert4(Object *ob, Object *par, float mat[4][4])
+{
+	/* in local ob space */
+	if (OB_TYPE_SUPPORT_PARVERT(par->type)) {
+		float cmat[3][3];
+		float v1[3], v2[3], v3[3], v4[3];
+		float q[4];
+
+		give_parvert(par, ob->par1, v1);
+		give_parvert(par, ob->par2, v2);
+		give_parvert(par, ob->par3, v3);
+		give_parvert(par, ob->par4, v4);
+
+		quad_to_quat(q, v1, v2, v3, v4);
+		quat_to_mat3(cmat, q);
+		copy_m4_m3(mat, cmat);
+
+		mid_v3_v3v3v3v3(mat[3], v1, v2, v3, v4);
 	}
 	else {
 		unit_m4(mat);
@@ -2244,7 +2267,10 @@ static void ob_get_parent_matrix(Scene *scene, Object *ob, Object *par, float pa
 			break;
 		case PARVERT3:
 			ob_parvert3(ob, par, tmat);
-			
+			mul_m4_m4m4(parentmat, par->obmat, tmat);
+			break;
+		case PARVERT4:
+			ob_parvert4(ob, par, tmat);
 			mul_m4_m4m4(parentmat, par->obmat, tmat);
 			break;
 		

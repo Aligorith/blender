@@ -581,7 +581,7 @@ static void build_dag_object(DagForest *dag, DagNode *scenenode, Scene *scene, O
 			case PARSKEL:
 				dag_add_relation(dag, node2, node, DAG_RL_DATA_DATA | DAG_RL_OB_OB, "Parent");
 				break;
-			case PARVERT1: case PARVERT3:
+			case PARVERT1: case PARVERT3: case PARVERT4:
 				dag_add_relation(dag, node2, node, DAG_RL_DATA_OB | DAG_RL_OB_OB, "Vertex Parent");
 				node2->customdata_mask |= CD_MASK_ORIGINDEX;
 				break;

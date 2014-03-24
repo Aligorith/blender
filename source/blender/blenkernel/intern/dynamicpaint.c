@@ -531,7 +531,7 @@ static int subframe_updateObject(Scene *scene, Object *ob, int flags, int parent
 
 		/* skip subframe if object is parented
 		 *  to vertex of a dynamic paint canvas */
-		if (is_canvas && (ob->partype == PARVERT1 || ob->partype == PARVERT3))
+		if (is_canvas && ELEM3(ob->partype, PARVERT1, PARVERT3, PARVERT4))
 			return 0;
 
 		/* also update constraint targets */
