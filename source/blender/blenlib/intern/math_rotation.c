@@ -746,6 +746,11 @@ void quad_to_quat(float quat[4], const float v1[3], const float v2[3], const flo
 	tri_to_quat_ex(q1, v1, v2, v3, n1);
 	tri_to_quat_ex(q2, v1, v3, v4, n2);
 	
+	/* make compatible, in a bid to reduce flipping artifacts */
+	if (dot_qtqt(q1, q2) < 0.0f) {
+		printf("qt2 flip (q1.q2 = %f)\n", dot_qtqt(q1, q2));
+		invert_qt(q2);
+	}
 	interp_qt_qtqt(quat, q1, q2, 0.5);
 	
 	print_v3("quad_n", quad_n);
