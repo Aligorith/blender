@@ -2218,7 +2218,8 @@ static void ob_parvert4(Object *ob, Object *par, float mat[4][4])
 		float cmat[3][3];
 		float v1[3], v2[3], v3[3], v4[3];
 		float q[4];
-
+		
+		printf("par verts = %d %d, %d, %d\n", ob->par1, ob->par2, ob->par3, ob->par4);
 		give_parvert(par, ob->par1, v1);
 		give_parvert(par, ob->par2, v2);
 		give_parvert(par, ob->par3, v3);

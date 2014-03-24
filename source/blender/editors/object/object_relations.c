@@ -812,6 +812,7 @@ static void parent_set_vert_find(KDTree *tree, Object *child, int vert_par[4], b
 		vert_par[1] = nearest[1].index;
 		vert_par[2] = nearest[2].index;
 		vert_par[3] = nearest[3].index;
+		printf("found verts - %d %d %d %d\n", nearest[0].index, nearest[1].index, nearest[2].index, nearest[3].index);
 		
 		BLI_assert(min_iiii(UNPACK4(vert_par)) >= 0);
 	}
