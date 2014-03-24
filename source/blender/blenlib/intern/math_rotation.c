@@ -732,15 +732,14 @@ float tri_to_quat(float quat[4], const float v1[3], const float v2[3], const flo
 
 void quad_to_quat(float quat[4], const float v1[3], const float v2[3], const float v3[3], const float v4[3])
 {
-	float n1[3], n2[3], quad_n[3];
+	float n1[3], n2[3];
 	float q1[4], q2[4];
+	float quad_n[3];
 	
-	/* calculate the quad rotation using the triangle whose normal is
-	 * "closest" to the quad's true rotation, since that should hopefully
-	 * act as our closest approximation of the true normal
-	 */
+	// debug
 	normal_quad_v3(quad_n, v1, v2, v3, v4);
 	
+	/* solve twice - one for each triangle, then blend the results */
 	normal_tri_v3(n1, v1, v2, v3);
 	normal_tri_v3(n2, v1, v3, v4);
 	
