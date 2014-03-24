@@ -2436,6 +2436,7 @@ void BKE_object_workob_calc_parent(Scene *scene, Object *ob, Object *workob)
 	workob->par1 = ob->par1;
 	workob->par2 = ob->par2;
 	workob->par3 = ob->par3;
+	workob->par4 = ob->par4;
 
 	workob->constraints.first = ob->constraints.first;
 	workob->constraints.last = ob->constraints.last;
