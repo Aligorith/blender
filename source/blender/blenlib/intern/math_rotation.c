@@ -733,7 +733,7 @@ float tri_to_quat(float quat[4], const float v1[3], const float v2[3], const flo
 void quad_to_quat(float quat[4], const float v1[3], const float v2[3], const float v3[3], const float v4[3])
 {
 	float n1[3], n2[3], quad_n[3];
-	float angle1, angle2;
+	float q1[4], q2[4];
 	
 	/* calculate the quad rotation using the triangle whose normal is
 	 * "closest" to the quad's true rotation, since that should hopefully
@@ -744,20 +744,16 @@ void quad_to_quat(float quat[4], const float v1[3], const float v2[3], const flo
 	normal_tri_v3(n1, v1, v2, v3);
 	normal_tri_v3(n2, v1, v3, v4);
 	
-	angle1 = dot_v3v3(quad_n, n1);
-	angle2 = dot_v3v3(quad_n, n2);
+	tri_to_quat_ex(q1, v1, v2, v3, n1);
+	tri_to_quat_ex(q2, v1, v3, v4, n2);
 	
-	if (fabsf(angle1) < fabsf(angle2)) {
-		tri_to_quat_ex(quat, v1, v2, v3, n1);
-	}
-	else {
-		tri_to_quat_ex(quat, v1, v3, v4, n2);
-	}
-	
+	interp_qt_qtqt(quat, q1, q2, 0.5);
 	
 	print_v3("quad_n", quad_n);
-	printf("angle1 = %f   : ", angle1); print_v3("n1", n1);
-	printf("angle2 = %f   : ", angle2); print_v3("n2", n2);
+	print_v3("n1", n1);
+	print_v3("n2", n2);
+	print_qt("q1", q1);
+	print_qt("q2", q2);
 	print_qt("result", quat);
 	printf("=============\n\n");
 }
