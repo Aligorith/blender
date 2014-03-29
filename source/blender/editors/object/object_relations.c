@@ -240,7 +240,18 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 				Object workob;
 				
 				ob->parent = BASACT->object;
-				if (v3) {
+				if (v4) {
+					ob->partype = PARVERT4;
+					ob->par1 = v1 - 1;
+					ob->par2 = v2 - 1;
+					ob->par3 = v3 - 1;
+					ob->par4 = v4 - 1;
+					
+					/* inverse parent matrix */
+					BKE_object_workob_calc_parent(scene, ob, &workob);
+					invert_m4_m4(ob->parentinv, workob.obmat);
+				}
+				else if (v3) {
 					ob->partype = PARVERT3;
 					ob->par1 = v1 - 1;
 					ob->par2 = v2 - 1;
