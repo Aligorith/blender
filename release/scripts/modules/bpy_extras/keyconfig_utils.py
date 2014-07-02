@@ -151,6 +151,106 @@ def keyconfig_merge(kc1, kc2):
     return merged_keymaps
 
 
+def _properties_summary_strings(kmi, properties):
+    from bpy.types import OperatorProperties
+
+    pairs = []
+
+    for prop_id in properties.bl_rna.properties.keys():
+        if prop_id != "rna_type":
+            # get fancy display-name for property
+            
+            # get representation for value
+            value = getattr(properties, prop_id)
+            if isinstance(value, OperatorProperties):
+                # macro operator - value is a block of sub-properties for one of the operators
+                pass
+            elif properties.is_property_set(prop_id):
+                if isinstance(value, bool):
+                    # just the property name only, and only if the flag is true
+                    if value:
+                        pairs.append( (prop_id,) )
+                elif isinstance(value, str):
+                    # XXX: careful - with enums, this may not work!
+                    #pairs.append( (prop_id, repr(value)) )
+                    pairs.append( (prop_id, str(value)) )
+                elif isinstance(value, int) or isinstance(value, float):
+                    pairs.append( (prop_id, repr(value)) )
+                elif getattr(value, '__len__', False):
+                    pairs.append( (prop_id, repr(list(value))) )
+
+    if len(pairs) > 1:
+        # property + value
+        # XXX: this doesn't work well with some combinations!
+        values = ["%s = %s" % (it[0], it[1]) if len(it) > 1  else it[0]
+                  for it in pairs]
+    elif pairs:
+        # just the value - no label needed
+        values = [pairs[0][-1]]
+    else:
+        # nothing
+        values = []
+
+    return values
+
+
+def keymap_item_get_fancy_name(kmi):
+    if (("wm.context_" in kmi.idname) and 
+        (kmi.idname not in ("wm.context_modal_mouse", "wm.context_collection_boolean_set"))):
+    
+        # get data-path for property affected by the operator (which we'll show in the name)
+        path = kmi.properties.get("data_path", "")
+        
+        if path:
+            # resolve the name of the property of the path points to...
+            # XXX: for now, we just chop off everything but the last bit
+            path = path.split('.')[-1]
+            
+            # construct name string
+            if 'wm.context_set_' in kmi.idname:
+                prop_name = path # XXX
+                value = 0
+                
+                name = "Set %s to %s" % (prop_name, value)
+            elif 'wm.context_toggle' == kmi.idname:
+                # toggle value
+                name = "Toggle %s" % (path) # XXX
+            elif 'wm.context_toggle_enum' == kmi.idname:
+                # enum values...
+                v1 = 'V1'
+                v2 = 'V2'
+                
+                name = "%s / %s Toggle" % (v1, v2)
+            elif 'wm.context_cycle_' in kmi.idname:
+                # cycle between several values
+                values = []
+                name = "%s Cycle Values" % (path)
+            else:
+                #print("Keymap UI Name Prettyfier: Unhandled wm context operator - %s" % (kmi.name))
+                name = kmi.name
+        else:
+            # indicate operator type, but also that it is "incomplete"
+            name = "(%s)" % (kmi.name)
+        
+        return name
+    elif kmi.idname == 'wm.call_menu':
+        # call menu
+        menu_id = kmi.properties.get("name", "")
+        menu_name = menu_id # XXX: get menu bl_label
+        
+        name = "%s Menu" % (menu_name)
+        return name
+    else:
+        # standard operators, but potentially with additional parameters
+        values = _properties_summary_strings(kmi, kmi.properties)
+        if values:        
+            display_name = "%s (%s)" % (kmi.name, ', '.join(values))
+        else:
+            display_name = kmi.name
+        
+        return display_name
+
+
 def _export_properties(prefix, properties, kmi_id, lines=None):
     from bpy.types import OperatorProperties
 

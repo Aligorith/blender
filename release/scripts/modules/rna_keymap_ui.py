@@ -31,6 +31,7 @@ __all__ = (
 import bpy
 from bpy.app.translations import pgettext_iface as iface_
 from bpy.app.translations import contexts as i18n_contexts
+from bpy_extras import keyconfig_utils
 
 
 def _indented_layout(layout, level):
@@ -140,7 +141,8 @@ def draw_kmi(display_keymaps, kc, km, kmi, layout, level):
     if km.is_modal:
         row.prop(kmi, "propvalue", text="")
     else:
-        row.label(text=kmi.name)
+        name = keyconfig_utils.keymap_item_get_fancy_name(kmi)
+        row.label(text=name)
 
     row = split.row()
     row.prop(kmi, "map_type", text="")
