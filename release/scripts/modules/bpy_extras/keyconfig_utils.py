@@ -203,18 +203,28 @@ def keymap_item_get_fancy_name(kmi):
         
         if path:
             # resolve the name of the property of the path points to...
-            # XXX: for now, we just chop off everything but the last bit
-            path = path.split('.')[-1]
+            elems = path.split('.')
+            path, prop_id = elems[:-1], elems[-1]
+            
+            try:
+				# XXX: this will end up fetching for the wrong type of window though
+                struct = bpy.context
+                for elem in path:
+                    struct = getattr(struct, elem)
+                prop_name = struct.bl_rna.properties[prop_id].name
+            except:
+                prop_name = prop_id
+            
+            # bpy.types.Object.bl_rna.properties["location"].name  # example of how to get the names
             
             # construct name string
             if 'wm.context_set_' in kmi.idname:
-                prop_name = path # XXX
                 value = 0
                 
                 name = "Set %s to %s" % (prop_name, value)
             elif 'wm.context_toggle' == kmi.idname:
                 # toggle value
-                name = "Toggle %s" % (path) # XXX
+                name = "Toggle %s" % (prop_name) # XXX
             elif 'wm.context_toggle_enum' == kmi.idname:
                 # enum values...
                 v1 = 'V1'
@@ -224,7 +234,7 @@ def keymap_item_get_fancy_name(kmi):
             elif 'wm.context_cycle_' in kmi.idname:
                 # cycle between several values
                 values = []
-                name = "%s Cycle Values" % (path)
+                name = "%s Cycle Values" % (prop_name)
             else:
                 #print("Keymap UI Name Prettyfier: Unhandled wm context operator - %s" % (kmi.name))
                 name = kmi.name
@@ -234,9 +244,12 @@ def keymap_item_get_fancy_name(kmi):
         
         return name
     elif kmi.idname == 'wm.call_menu':
-        # call menu
+        # show menu
         menu_id = kmi.properties.get("name", "")
         menu_name = menu_id # XXX: get menu bl_label
+        
+        # bpy.types.Menu.__subclasses__()  # gets us a list of classes
+        # bpy.types.VIEW3D_MT_view_cameras.bl_rna.name  # that gives us the display name
         
         name = "%s Menu" % (menu_name)
         return name
