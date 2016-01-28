@@ -34,6 +34,7 @@
 /* allow readfile to use deprecated functionality */
 #define DNA_DEPRECATED_ALLOW
 
+#include "DNA_armature_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_camera_types.h"
 #include "DNA_cloth_types.h"
@@ -133,6 +134,16 @@ static void do_version_constraints_stretch_to_limits(ListBase *lb)
 			data->bulge_min = 1.0f;
 			data->bulge_max = 1.0f;
 		}
+	}
+}
+
+static void do_version_bones_super_bbone(ListBase *lb)
+{
+	for (Bone *bone = lb->first; bone; bone = bone->next) {
+		bone->scaleIn = 1.0f;
+		bone->scaleOut = 1.0f;
+		
+		do_version_bones_super_bbone(&bone->childbase);
 	}
 }
 
@@ -1028,6 +1039,14 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 				gpd->flag |= GP_DATA_SHOW_ONIONSKINS;
 			else
 				gpd->flag &= ~GP_DATA_SHOW_ONIONSKINS;
+		}
+	}
+
+
+	if (!DNA_struct_elem_find(fd->filesdna, "Bone", "float", "scaleIn")) {
+		printf("fixing bones\n");
+		for (bArmature *arm = main->armature.first; arm; arm = arm->id.next) {
+			do_version_bones_super_bbone(&arm->bonebase);
 		}
 	}
 }
