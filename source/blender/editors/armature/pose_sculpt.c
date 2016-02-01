@@ -79,6 +79,72 @@
 #include "WM_types.h"
 
 /* ******************************************************** */
+/* Type Defines */
+
+/* Pose Sculpting brush operator data  */
+typedef struct tPoseSculptingOp {
+	/* General Context Data -------------- */
+	ViewContext vc;
+	
+	ARegion *ar;
+	View3D *v3d;
+	RegionView3D *rv3d;
+	
+	Scene *scene;
+	Object *ob;
+	
+	/* Brush Runtime Data ---------------- */
+	
+	/* General Brush Data */
+	PSculptBrushData *brush;      /* active brush */
+	ePSculptBrushType brush_type; /* type of brush */
+	
+	bool invert;                  /* does brush have the opposite effect */
+	
+	/* Brush Specific Data */
+	float dvec[3];                /* mouse travel vector, or something else */
+	float rmat[3][3];             /* rotation matrix to apply to all bones (e.g. trackball) */
+	
+	/* Event Handling -------------------- */
+	
+	float mval[2];               /* current mouse position */
+	float lastmouse[2];          /* previous mouse position */
+	
+	float pressure;              /* current mouse pressure */
+	
+	bool is_first;               /* is this the first time we're applying anything? */
+	bool is_timer_tick;          /* is the current event being processed due to a timer tick? */
+	
+	wmTimer *timer;              /* timer for in-place accumulation of brush effect */
+	
+	/* Bones + Keying ------------------- */
+	
+	GHash *affected_bones;       /* list of bones affected by brush */
+	
+	KeyingSet *ks;               /* keyingset to use */
+	ListBase ks_sources;         /* list of elements to be keyed by the Keying Set */
+} tPoseSculptingOp;
+
+/* Callback Function Signature */
+typedef void (*PSculptBrushCallback)(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist);
+
+
+/* Cache data for a bone that's been affected by the sculpt tools */
+typedef struct tAffectedBone {
+	struct tAffectedBone *next, *prev;
+	
+	bPoseChannel *pchan;		/* bone in question */
+	float fac;					/* (last) strength factor applied to this bone */
+	
+	float oldloc[3];            /* transform values at start of operator (to be restored before each modal step) */
+	float oldrot[3];
+	float oldscale[3];
+	float oldquat[4];
+	float oldangle;
+	float oldaxis[3];
+} tAffectedBone;
+
+/* ******************************************************** */
 /* General settings */
 
 /* Get Pose Sculpt Settings */
@@ -219,74 +285,7 @@ static void psculpt_brush_header_info(bContext *C)
 }
 
 /* ******************************************************** */
-/* Brush Operation Callbacks */
-
-/* Defines ------------------------------------------------ */
-
-/* Affected bones */
-typedef struct tAffectedBone {
-	struct tAffectedBone *next, *prev;
-	
-	bPoseChannel *pchan;		/* bone in question */
-	float fac;					/* (last) strength factor applied to this bone */
-	
-	float oldloc[3];            /* transform values at start of operator (to be restored before each modal step) */
-	float oldrot[3];
-	float oldscale[3];
-	float oldquat[4];
-	float oldangle;
-	float oldaxis[3];
-} tAffectedBone;
-
-/* Pose Sculpting brush operator data  */
-typedef struct tPoseSculptingOp {
-	/* General Context Data -------------- */
-	ViewContext vc;
-	
-	ARegion *ar;
-	View3D *v3d;
-	RegionView3D *rv3d;
-	
-	Scene *scene;
-	Object *ob;
-	
-	/* Brush Runtime Data ---------------- */
-	
-	/* General Brush Data */
-	PSculptBrushData *brush;      /* active brush */
-	ePSculptBrushType brush_type; /* type of brush */
-	
-	bool invert;				/* does brush have the opposite effect */
-	
-	/* Brush Specific Data */
-	float dvec[3];				/* mouse travel vector, or something else */
-	float rmat[3][3];			/* rotation matrix to apply to all bones (e.g. trackball) */
-	
-	/* Event Handling -------------------- */
-	
-	float mval[2];				/* current mouse position */
-	float lastmouse[2];			/* previous mouse position */
-	
-	float pressure;				/* current mouse pressure */
-	
-	bool is_first;				/* is this the first time we're applying anything? */
-	bool is_timer_tick;			/* is the current event being processed due to a timer tick? */
-	
-	wmTimer *timer;				/* timer for in-place accumulation of brush effect */
-	
-	/* Bones + Keying ------------------- */
-	
-	GHash *affected_bones;		/* list of bones affected by brush */
-	
-	KeyingSet *ks;				/* keyingset to use */
-	ListBase ks_sources;		/* list of elements to be keyed by the Keying Set */
-} tPoseSculptingOp;
-
-/* Callback Function Signature */
-typedef void (*PSculptBrushCallback)(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist);
-
-
-/* Brush Utilities ---------------------------------------- */
+/* Brush Utilities */
 
 static float psculpt_brush_calc_influence(tPoseSculptingOp *pso, float dist)
 {
@@ -748,7 +747,10 @@ static void free_affected_bone(void *tab_p)
 	MEM_freeN(tab_p);
 }
 
-/* Brushes ------------------------------------------------ */
+/* ******************************************************** */
+/* Brush Defines */
+
+/* Select ---------------------------------------------- */
 
 /* change selection status of bones - used to define masks */
 static void psculpt_brush_select_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float UNUSED(dist))
@@ -761,7 +763,7 @@ static void psculpt_brush_select_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	}
 }
 
-/* .......................... */
+/* Smooth ---------------------------------------------- */
 
 /* "Smooth" brush */
 static void psculpt_brush_smooth_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
@@ -769,7 +771,7 @@ static void psculpt_brush_smooth_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	
 }
 
-/* .......................... */
+/* Grab ------------------------------------------------ */
 
 /* "Grab" brush - Translate bone */
 static void psculpt_brush_grab_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
@@ -826,9 +828,9 @@ static void psculpt_brush_grab_apply(tPoseSculptingOp *pso, bPoseChannel *pchan,
 	add_v3_v3(pchan->loc, cvec);
 }
 
-/* .......................... */
+/* Adjust ---------------------------------------------- */
 
-/* "Adjust" Brush - Compute transform to apply to all bones inside the brush */
+/* "Adjust" Brush - Compute trackball transform to apply to all bones inside the brush */
 static void psculpt_brush_calc_trackball(tPoseSculptingOp *pso)
 {
 	PSculptBrushData *brush = pso->brush;
@@ -865,13 +867,13 @@ static void psculpt_brush_calc_trackball(tPoseSculptingOp *pso)
 	interp_m3_m3m3(pso->rmat, refmat, mat, brush->strength);
 }
 
-/* "Adjust" Brush - i.e. a simple trackball transform */
+/* "Adjust" Brush - i.e. a simple rotation transform */
 static void psculpt_brush_adjust_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float UNUSED(dist))
 {
 	pchan_do_rotate(pso->ob, pchan, pso->rmat);
 }
 
-/* .......................... */
+/* Curl -----------------------------------------------_ */
 
 /* "Curl" brush - Rotate bone around its non-primary axes */
 static void psculpt_brush_curl_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
@@ -914,7 +916,7 @@ static void psculpt_brush_curl_apply(tPoseSculptingOp *pso, bPoseChannel *pchan,
 	set_pchan_eul_rotation(eul, pchan);
 }
 
-/* .......................... */
+/* Twist ----------------------------------------------- */
 
 /* "Twist" brush - Rotate bone around its primary axis */
 static void psculpt_brush_twist_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
@@ -946,7 +948,7 @@ static void psculpt_brush_twist_apply(tPoseSculptingOp *pso, bPoseChannel *pchan
 	set_pchan_eul_rotation(eul, pchan);
 }
 
-/* .......................... */
+/* Stretch --------------------------------------------- */
 
 /* "Stretch" brush - Scale bone along its primary axis */
 static void psculpt_brush_stretch_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
@@ -983,7 +985,7 @@ static void psculpt_brush_stretch_apply(tPoseSculptingOp *pso, bPoseChannel *pch
 	}
 }
 
-/* .......................... */
+/* Reset/Restore --------------------------------------- */
 
 /* Clear transforms
  *
@@ -1174,7 +1176,9 @@ static void psculpt_brush_restore_apply(tPoseSculptingOp *pso, bPoseChannel *pch
 		pchan->size[2] = interpf(tab->oldscale[2], pchan->size[2], fac);
 }
 
-/* .......................... */
+
+
+/* Unused ----------------------------------------------- */
 
 /* "radial" brush */
 static void psculpt_brush_radial_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
@@ -1262,6 +1266,9 @@ static void psculpt_brush_exit(bContext *C, wmOperator *op)
 	
 	/* clear affected bones hash - second arg is provided to free allocated data */
 	BLI_ghash_free(pso->affected_bones, NULL, free_affected_bone);
+	
+	/* clear unkeyed bones list (just in case) */
+	BLI_freelistN(&pso->ks_sources);
 	
 	/* disable cursor and headerprints */
 	ED_area_headerprint(CTX_wm_area(C), NULL);
