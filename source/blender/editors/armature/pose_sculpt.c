@@ -103,7 +103,12 @@ typedef struct tPoseSculptingOp {
 	
 	/* Brush Specific Data */
 	float dvec[3];                /* mouse travel vector, or something else */
+	
+	float center[3];              /* center of rotation */
+	float angle;                  /* angle of rotation */
+	
 	float rmat[3][3];             /* rotation matrix to apply to all bones (e.g. trackball) */
+	
 	
 	/* Event Handling -------------------- */
 	
@@ -867,6 +872,97 @@ static void psculpt_brush_calc_trackball(tPoseSculptingOp *pso)
 	interp_m3_m3m3(pso->rmat, refmat, mat, brush->strength);
 }
 
+
+/* Compute angle from mouse movements
+ * Copied from transform_input.c - InputAngle()
+ */
+static float InputAngle(tPoseSculptingOp *pso)
+{
+	double mval[2]      = {(double)pso->mval[0],      (double)pso->mval[1]};
+	double mval_prev[2] = {(double)pso->lastmouse[0], (double)pso->lastmouse[1]};
+	double center[2]    = {(double)pso->center[0],    (double)pso->center[1]};
+	
+	printf("m[%f, %f]       p[%f, %f]       c[%f, %f]\n", 
+		mval[0], mval[1],
+		mval_prev[0], mval_prev[1],
+		center[0], center[1]);
+	
+	double dx2 = mval[0] - center[0];
+	double dy2 = mval[1] - center[1];
+	double B = sqrt(dx2 * dx2 + dy2 * dy2);
+
+	double dx1 = mval_prev[0] - center[0];
+	double dy1 = mval_prev[1] - center[1];
+	double A = sqrt(dx1 * dx1 + dy1 * dy1);
+
+	double dx3 = mval[0] - mval_prev[0];
+	double dy3 = mval[1] - mval_prev[1];
+
+	/* use doubles here, to make sure a "1.0" (no rotation) doesn't become 9.999999e-01, which gives 0.02 for acos */
+	double deler = (((dx1 * dx1 + dy1 * dy1) +
+	                 (dx2 * dx2 + dy2 * dy2) -
+	                 (dx3 * dx3 + dy3 * dy3)) / (2.0 * ((A * B) ? (A * B) : 1.0)));
+	/* ((A * B) ? (A * B) : 1.0) this takes care of potential divide by zero errors */
+
+	float dphi;
+
+	dphi = saacos((float)deler);
+	if ((dx1 * dy2 - dx2 * dy1) > 0.0) dphi = -dphi;
+
+	/* If the angle is zero, because of lack of precision close to the 1.0 value in acos
+	 * approximate the angle with the opposite side of the normalized triangle
+	 * This is a good approximation here since the smallest acos value seems to be around
+	 * 0.02 degree and lower values don't even have a 0.01% error compared to the approximation
+	 */
+	if (dphi == 0) {
+		double dx, dy;
+
+		dx2 /= A;
+		dy2 /= A;
+
+		dx1 /= B;
+		dy1 /= B;
+
+		dx = dx1 - dx2;
+		dy = dy1 - dy2;
+
+		dphi = sqrt(dx * dx + dy * dy);
+		if ((dx1 * dy2 - dx2 * dy1) > 0.0) dphi = -dphi;
+	}
+	
+	//pso->angle += ((double)dphi * 1.0 / 30.0); /* precision factor */
+	
+	//return pso->angle;
+	printf("      dphi = %f\n", dphi);
+	return dphi;
+}
+
+/* "Adjust" Brush - Compute rotation transform to apply to all bones inside the brush
+ * 
+ * The rotation here is performed around the screen-space plane's normal,
+ * just like "normal rotations" are usually performed
+ */
+static void psculpt_brush_calc_normalroll(tPoseSculptingOp *pso)
+{
+	PSculptBrushData *brush = pso->brush;
+	RegionView3D *rv3d = pso->rv3d;
+	
+	float axis[3];
+	float angle;
+	
+	/* Compute rotation angle */
+	angle = InputAngle(pso);
+	
+	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) */
+	negate_v3_v3(axis, rv3d->persinv[2]);
+	normalize_v3(axis);
+	
+	/* Compute rotation matrix */
+	axis_angle_normalized_to_mat3(pso->rmat, axis, angle * brush->strength / 0.5f);
+}
+
+
+
 /* "Adjust" Brush - i.e. a simple rotation transform */
 static void psculpt_brush_adjust_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float UNUSED(dist))
 {
@@ -1423,6 +1519,7 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 	/* store coordinates as reference, if operator just started running */
 	if (pso->is_first) {
 		copy_v2_v2(pso->lastmouse, pso->mval);
+		//copy_v2_v2(pso->center, pso->mval);
 	}
 	
 	/* get distance moved */
@@ -1442,6 +1539,8 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 		rvec = ED_view3d_cursor3d_get(pso->scene, pso->v3d);
 		zfac = ED_view3d_calc_zfac(pso->rv3d, rvec, NULL);
 		
+		copy_v3_v3(pso->center, rvec);
+		
 		/* precompute object dependencies */
 		invert_m4_m4(ob->imat, ob->obmat);
 		
@@ -1451,13 +1550,11 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 			case PSCULPT_BRUSH_ADJUST:
 			{
 				if (pso->invert) {
-					/* Shift = Hardcoded convenience shortcut to perform Grab */
-					ED_view3d_win_to_delta(pso->ar, delta, pso->dvec, zfac);
+					/* Compute rotate effect */
+					psculpt_brush_calc_normalroll(pso);
 					
-					/* Hack: Clear invert flag, or else translate behaves wrong */
-					pso->invert = false;
-					
-					changed = psculpt_brush_do_apply(pso, psculpt_brush_grab_apply);
+					/* Apply rotation transform to bones... */
+					changed = psculpt_brush_do_apply(pso, psculpt_brush_adjust_apply);
 				}
 				else {
 					/* Compute trackball effect */
