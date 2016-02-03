@@ -304,6 +304,7 @@ static float psculpt_brush_calc_influence(tPoseSculptingOp *pso, float dist)
 	
 	/* use distance falloff */
 	if (brush->flag & PSCULPT_BRUSH_FLAG_USE_FALLOFF) {
+		CLAMP(dist, 0.0, 1.0f);
 		fac *= fabsf(1.0f - dist / brush->size);
 	}
 	
@@ -876,11 +877,11 @@ static void psculpt_brush_calc_trackball(tPoseSculptingOp *pso)
 /* Compute angle from mouse movements
  * Copied from transform_input.c - InputAngle()
  */
-static float InputAngle(tPoseSculptingOp *pso)
+static float InputAngle(tPoseSculptingOp *pso, float center[2])
 {
 	double mval[2]      = {(double)pso->mval[0],      (double)pso->mval[1]};
 	double mval_prev[2] = {(double)pso->lastmouse[0], (double)pso->lastmouse[1]};
-	double center[2]    = {(double)pso->center[0],    (double)pso->center[1]};
+	//double center[2]    = {(double)pso->center[0],    (double)pso->center[1]};
 	
 	printf("m[%f, %f]       p[%f, %f]       c[%f, %f]\n", 
 		mval[0], mval[1],
@@ -942,23 +943,27 @@ static float InputAngle(tPoseSculptingOp *pso)
  * The rotation here is performed around the screen-space plane's normal,
  * just like "normal rotations" are usually performed
  */
-static void psculpt_brush_calc_normalroll(tPoseSculptingOp *pso)
+//static void psculpt_brush_calc_normalroll(tPoseSculptingOp *pso)
+static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
 {
 	PSculptBrushData *brush = pso->brush;
 	RegionView3D *rv3d = pso->rv3d;
 	
 	float axis[3];
 	float angle;
+	float rmat[3][3];
 	
 	/* Compute rotation angle */
-	angle = InputAngle(pso);
+	angle = InputAngle(pso, pchan->pose_mat[3]);
 	
 	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) */
 	negate_v3_v3(axis, rv3d->persinv[2]);
 	normalize_v3(axis);
 	
 	/* Compute rotation matrix */
-	axis_angle_normalized_to_mat3(pso->rmat, axis, angle * brush->strength / 0.5f);
+	axis_angle_normalized_to_mat3(rmat, axis, angle * brush->strength / 0.5f);
+	
+	pchan_do_rotate(pso->ob, pchan, rmat);
 }
 
 
@@ -1551,10 +1556,12 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 			{
 				if (pso->invert) {
 					/* Compute rotate effect */
-					psculpt_brush_calc_normalroll(pso);
+					//psculpt_brush_calc_normalroll(pso);
 					
 					/* Apply rotation transform to bones... */
-					changed = psculpt_brush_do_apply(pso, psculpt_brush_adjust_apply);
+					//changed = psculpt_brush_do_apply(pso, psculpt_brush_adjust_apply);
+					
+					changed = psculpt_brush_do_apply(pso, psculpt_brush_rotate_apply);
 				}
 				else {
 					/* Compute trackball effect */
