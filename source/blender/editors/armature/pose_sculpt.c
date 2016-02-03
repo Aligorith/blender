@@ -806,7 +806,7 @@ static void psculpt_brush_grab_apply(tPoseSculptingOp *pso, bPoseChannel *pchan,
 		}
 		else {
 			/* don't use falloff - works better for chains */
-			fac = 1.0f;
+			//fac = 1.0f;
 		}
 	}
 	
