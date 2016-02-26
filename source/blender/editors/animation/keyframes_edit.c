@@ -77,11 +77,11 @@
  * operation on them, and optionally applies an F-Curve validation function afterwards.
  */
 // TODO: make this function work on samples too...
-short ANIM_fcurve_keyframes_loop(KeyframeEditData *ked, FCurve *fcu, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb) 
+bool ANIM_fcurve_keyframes_loop(KeyframeEditData *ked, FCurve *fcu, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb) 
 {
 	BezTriple *bezt;
-	short ok = 0;
 	unsigned int i;
+	eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 
 	/* sanity check */
 	if (ELEM(NULL, fcu, fcu->bezt))
@@ -93,40 +93,55 @@ short ANIM_fcurve_keyframes_loop(KeyframeEditData *ked, FCurve *fcu, KeyframeEdi
 		ked->curIndex = 0;
 		ked->curflags = ok;
 	}
-
-	/* if function to apply to bezier curves is set, then loop through executing it on beztriples */
-	if (key_cb) {
-		/* if there's a validation func, include that check in the loop 
-		 * (this is should be more efficient than checking for it in every loop)
-		 */
-		if (key_ok) {
-			for (bezt = fcu->bezt, i = 0; i < fcu->totvert; bezt++, i++) {
-				if (ked) {
-					/* advance the index, and reset the ok flags (to not influence the result) */
-					ked->curIndex = i;
-					ked->curflags = 0;
-				}
+	
+	/* Check for the callbacks first, since it should be more efficient to do this first instead of in each loop */
+	if (key_ok && key_cb) {
+		/* Both poll and apply are defined - so run apply when poll succeeds */
+		for (bezt = fcu->bezt, i = 0; i < fcu->totvert; bezt++, i++) {
+			if (ked) {
+				/* advance the index, and reset the ok flags (to not influence the result) */
+				ked->curIndex = i;
+				ked->curflags = 0;
+			}
+			
+			/* Only operate on this BezTriple if it fullfills the criteria of the validation func */
+			if ((ok = key_ok(ked, bezt))) {
+				if (ked) ked->curflags = ok;
 				
-				/* Only operate on this BezTriple if it fullfills the criteria of the validation func */
-				if ((ok = key_ok(ked, bezt))) {
-					if (ked) ked->curflags = ok;
-					
-					/* Exit with return-code '1' if function returns positive
-					 * This is useful if finding if some BezTriple satisfies a condition.
-					 */
-					if (key_cb(ked, bezt)) return 1;
-				}
+				/* Exit with "true" return code if the "key_cb" operation returns something	 */
+				if (key_cb(ked, bezt)) return true;
 			}
 		}
-		else {
-			for (bezt = fcu->bezt, i = 0; i < fcu->totvert; bezt++, i++) {
-				if (ked) ked->curIndex = i;
-				
-				/* Exit with return-code '1' if function returns positive
-				 * This is useful if finding if some BezTriple satisfies a condition.
-				 */
-				if (key_cb(ked, bezt)) return 1;
+	}
+	else if (key_ok) {
+		/* Only the poll callback is defined, so just exit when the first poll returns true
+		 * This is useful to test if some BezTriple satisfies a condition
+		 */
+		for (bezt = fcu->bezt, i = 0; i < fcu->totvert; bezt++, i++) {
+			if (ked) {
+				/* advance the index, and reset the ok flags (to not influence the result) */
+				ked->curIndex = i;
+				ked->curflags = 0;
 			}
+			
+			/* Only operate on this BezTriple if it fullfills the criteria of the validation func */
+			if ((ok = key_ok(ked, bezt))) {
+				if (ked) ked->curflags = ok;
+				
+				/* Exit with "true" return code now, since we've got what we want */
+				return true;
+			}
+		}
+	}
+	else if (key_cb) {
+		/* Function to apply operations to bezier curves is set, so loop through executing it on beztriples */
+		for (bezt = fcu->bezt, i = 0; i < fcu->totvert; bezt++, i++) {
+			if (ked) ked->curIndex = i;
+			
+			/* Exit with return-code '1' if function returns positive
+			 * This is useful if finding if some BezTriple satisfies a condition.
+			 */
+			if (key_cb(ked, bezt)) return true;
 		}
 	}
 	
@@ -142,61 +157,61 @@ short ANIM_fcurve_keyframes_loop(KeyframeEditData *ked, FCurve *fcu, KeyframeEdi
 		fcu_cb(fcu);
 	
 	/* done */
-	return 0;
+	return false;
 }
 
 /* -------------------------------- Further Abstracted (Not Exposed Directly) ----------------------------- */
 
 /* This function is used to loop over the keyframe data in an Action Group */
-static short agrp_keyframes_loop(KeyframeEditData *ked, bActionGroup *agrp, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
+static bool agrp_keyframes_loop(KeyframeEditData *ked, bActionGroup *agrp, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
 {
 	FCurve *fcu;
 	
 	/* sanity check */
 	if (agrp == NULL)
-		return 0;
+		return false;
 	
 	/* only iterate over the F-Curves that are in this group */
 	for (fcu = agrp->channels.first; fcu && fcu->grp == agrp; fcu = fcu->next) {
 		if (ANIM_fcurve_keyframes_loop(ked, fcu, key_ok, key_cb, fcu_cb))
-			return 1;
+			return true;
 	}
 	
-	return 0;
+	return false;
 }
 
 /* This function is used to loop over the keyframe data in an Action */
-static short act_keyframes_loop(KeyframeEditData *ked, bAction *act, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
+static bool act_keyframes_loop(KeyframeEditData *ked, bAction *act, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
 {
 	FCurve *fcu;
 	
 	/* sanity check */
 	if (act == NULL)
-		return 0;
+		return false;
 	
 	/* just loop through all F-Curves */
 	for (fcu = act->curves.first; fcu; fcu = fcu->next) {
 		if (ANIM_fcurve_keyframes_loop(ked, fcu, key_ok, key_cb, fcu_cb))
-			return 1;
+			return true;
 	}
 	
-	return 0;
+	return true;
 }
 
 /* This function is used to loop over the keyframe data in an Object */
-static short ob_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Object *ob, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
+static bool ob_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Object *ob, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
 {
 	bAnimContext ac = {NULL};
 	ListBase anim_data = {NULL, NULL};
 	bAnimListElem *ale;
 	int filter;
-	int ret = 0;
+	bool ret = false;
 	
 	bAnimListElem dummychan = {NULL};
 	Base dummybase = {NULL};
 	
 	if (ob == NULL)
-		return 0;
+		return false;
 	
 	/* create a dummy wrapper data to work with */
 	dummybase.object = ob;
@@ -217,7 +232,7 @@ static short ob_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Object *o
 	/* loop through each F-Curve, applying the operation as required, but stopping on the first one */
 	for (ale = anim_data.first; ale; ale = ale->next) {
 		if (ANIM_fcurve_keyframes_loop(ked, (FCurve *)ale->data, key_ok, key_cb, fcu_cb)) {
-			ret = 1;
+			ret = true;
 			break;
 		}
 	}
@@ -229,18 +244,18 @@ static short ob_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Object *o
 }
 
 /* This function is used to loop over the keyframe data in a Scene */
-static short scene_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Scene *sce, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
+static bool scene_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Scene *sce, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
 {
 	bAnimContext ac = {NULL};
 	ListBase anim_data = {NULL, NULL};
 	bAnimListElem *ale;
 	int filter;
-	int ret = 0;
+	bool ret = false;
 	
 	bAnimListElem dummychan = {NULL};
 	
 	if (sce == NULL)
-		return 0;
+		return false;
 	
 	/* create a dummy wrapper data to work with */
 	dummychan.type = ANIMTYPE_SCENE;
@@ -259,7 +274,7 @@ static short scene_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Scene 
 	/* loop through each F-Curve, applying the operation as required, but stopping on the first one */
 	for (ale = anim_data.first; ale; ale = ale->next) {
 		if (ANIM_fcurve_keyframes_loop(ked, (FCurve *)ale->data, key_ok, key_cb, fcu_cb)) {
-			ret = 1;
+			ret = true;
 			break;
 		}
 	}
@@ -271,15 +286,16 @@ static short scene_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, Scene 
 }
 
 /* This function is used to loop over the keyframe data in a DopeSheet summary */
-static short summary_keyframes_loop(KeyframeEditData *ked, bAnimContext *ac, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
+static short summary_keyframes_loop(KeyframeEditData *ked, bAnimContext *ac, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
 {
 	ListBase anim_data = {NULL, NULL};
 	bAnimListElem *ale;
-	int filter, ret_code = 0;
+	int filter;
+	bool ret_code = false;
 	
 	/* sanity check */
 	if (ac == NULL)
-		return 0;
+		return false;
 	
 	/* get F-Curves to take keyframes from */
 	filter = ANIMFILTER_DATA_VISIBLE;
@@ -338,11 +354,11 @@ static short summary_keyframes_loop(KeyframeEditData *ked, bAnimContext *ac, Key
 /* --- */
 
 /* This function is used to apply operation to all keyframes, regardless of the type */
-short ANIM_animchannel_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, bAnimListElem *ale, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
+bool ANIM_animchannel_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, bAnimListElem *ale, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
 {
 	/* sanity checks */
 	if (ale == NULL)
-		return 0;
+		return false;
 	
 	/* method to use depends on the type of keyframe data */
 	switch (ale->datatype) {
@@ -366,15 +382,15 @@ short ANIM_animchannel_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, bA
 			return summary_keyframes_loop(ked, (bAnimContext *)ale->data, key_ok, key_cb, fcu_cb);
 	}
 	
-	return 0;
+	return false;
 }
 
 /* This function is used to apply operation to all keyframes, regardless of the type without needed an AnimListElem wrapper */
-short ANIM_animchanneldata_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, void *data, int keytype, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
+bool ANIM_animchanneldata_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads, void *data, int keytype, KeyframeEditPoll key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb)
 {
 	/* sanity checks */
 	if (data == NULL)
-		return 0;
+		return false;
 	
 	/* method to use depends on the type of keyframe data */
 	switch (keytype) {
@@ -398,7 +414,7 @@ short ANIM_animchanneldata_keyframes_loop(KeyframeEditData *ked, bDopeSheet *ads
 			return summary_keyframes_loop(ked, (bAnimContext *)data, key_ok, key_cb, fcu_cb);
 	}
 	
-	return 0;
+	return false;
 }
 
 /* ************************************************************************** */
@@ -455,9 +471,9 @@ void ANIM_editkeyframes_refresh(bAnimContext *ac)
  
 /* ------------------------ */
  
-static short ok_bezier_frame(KeyframeEditData *ked, BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_frame(KeyframeEditData *ked, BezTriple *bezt)
 {
-	short ok = 0;
+	eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 	
 	/* frame is stored in f1 property (this float accuracy check may need to be dropped?) */
 #define KEY_CHECK_OK(_index) IS_EQF(bezt->vec[_index][0], ked->f1)
@@ -468,9 +484,9 @@ static short ok_bezier_frame(KeyframeEditData *ked, BezTriple *bezt)
 	return ok;
 }
 
-static short ok_bezier_framerange(KeyframeEditData *ked, BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_framerange(KeyframeEditData *ked, BezTriple *bezt)
 {
-	short ok = 0;
+	eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 	
 	/* frame range is stored in float properties */
 #define KEY_CHECK_OK(_index) ((bezt->vec[_index][0] > ked->f1) && (bezt->vec[_index][0] < ked->f2))
@@ -481,7 +497,7 @@ static short ok_bezier_framerange(KeyframeEditData *ked, BezTriple *bezt)
 	return ok;
 }
 
-static short ok_bezier_selected(KeyframeEditData *UNUSED(ked), BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_selected(KeyframeEditData *UNUSED(ked), BezTriple *bezt)
 {
 	/* this macro checks all beztriple handles for selection... 
 	 * only one of the verts has to be selected for this to be ok...
@@ -489,12 +505,12 @@ static short ok_bezier_selected(KeyframeEditData *UNUSED(ked), BezTriple *bezt)
 	if (BEZT_ISSEL_ANY(bezt))
 		return KEYFRAME_OK_ALL;
 	else
-		return 0;
+		return KEYFRAME_OK_NONE;
 }
 
-static short ok_bezier_value(KeyframeEditData *ked, BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_value(KeyframeEditData *ked, BezTriple *bezt)
 {	
-	short ok = 0;
+	eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 	
 	/* value is stored in f1 property 
 	 *	- this float accuracy check may need to be dropped?
@@ -508,9 +524,9 @@ static short ok_bezier_value(KeyframeEditData *ked, BezTriple *bezt)
 	return ok;
 }
 
-static short ok_bezier_valuerange(KeyframeEditData *ked, BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_valuerange(KeyframeEditData *ked, BezTriple *bezt)
 {
-	short ok = 0;
+	eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 	
 	/* value range is stored in float properties */
 #define KEY_CHECK_OK(_index) ((bezt->vec[_index][1] > ked->f1) && (bezt->vec[_index][1] < ked->f2))
@@ -521,11 +537,11 @@ static short ok_bezier_valuerange(KeyframeEditData *ked, BezTriple *bezt)
 	return ok;
 }
 
-static short ok_bezier_region(KeyframeEditData *ked, BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_region(KeyframeEditData *ked, BezTriple *bezt)
 {
 	/* rect is stored in data property (it's of type rectf, but may not be set) */
 	if (ked->data) {
-		short ok = 0;
+		eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 		
 #define KEY_CHECK_OK(_index) BLI_rctf_isect_pt_v(ked->data, bezt->vec[_index])
 		KEYFRAME_OK_CHECKS(KEY_CHECK_OK);
@@ -558,11 +574,11 @@ static bool bezier_region_lasso_test(
 	return false;
 }
 
-static short ok_bezier_region_lasso(KeyframeEditData *ked, BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_region_lasso(KeyframeEditData *ked, BezTriple *bezt)
 {
 	/* check for lasso customdata (KeyframeEdit_LassoData) */
 	if (ked->data) {
-		short ok = 0;
+		eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 		
 #define KEY_CHECK_OK(_index) bezier_region_lasso_test(ked->data, bezt->vec[_index])
 		KEYFRAME_OK_CHECKS(KEY_CHECK_OK);
@@ -571,8 +587,10 @@ static short ok_bezier_region_lasso(KeyframeEditData *ked, BezTriple *bezt)
 		/* return ok flags */
 		return ok;
 	}
-	else
-		return 0;
+	else {
+		/* keyframe not in lasso */
+		return KEYFRAME_OK_NONE;
+	}
 }
 
 /**
@@ -596,11 +614,11 @@ static bool bezier_region_circle_test(
 }
 
 
-static short ok_bezier_region_circle(KeyframeEditData *ked, BezTriple *bezt)
+static eKeyframeVertOk ok_bezier_region_circle(KeyframeEditData *ked, BezTriple *bezt)
 {
 	/* check for circle select customdata (KeyframeEdit_CircleData) */
 	if (ked->data) {
-		short ok = 0;
+		eKeyframeVertOk ok = KEYFRAME_OK_NONE;
 		
 #define KEY_CHECK_OK(_index) bezier_region_circle_test(ked->data, bezt->vec[_index])
 		KEYFRAME_OK_CHECKS(KEY_CHECK_OK);
@@ -609,12 +627,14 @@ static short ok_bezier_region_circle(KeyframeEditData *ked, BezTriple *bezt)
 		/* return ok flags */
 		return ok;
 	}
-	else
-		return 0;
+	else {
+		/* keyframe not in circle */
+		return KEYFRAME_OK_NONE;
+	}
 }
 
 
-KeyframeEditFunc ANIM_editkeyframes_ok(short mode)
+KeyframeEditPoll ANIM_editkeyframes_ok(short mode)
 {
 	/* eEditKeyframes_Validate */
 	switch (mode) {

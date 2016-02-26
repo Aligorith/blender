@@ -1694,7 +1694,7 @@ static void sethandles_graph_keys(bAnimContext *ac, short mode)
 	int filter;
 	
 	KeyframeEditFunc edit_cb = ANIM_editkeyframes_handles(mode);
-	KeyframeEditFunc sel_cb = ANIM_editkeyframes_ok(BEZT_OK_SELECTED);
+	KeyframeEditPoll sel_cb = ANIM_editkeyframes_ok(BEZT_OK_SELECTED);
 	
 	/* filter data */
 	filter = (ANIMFILTER_DATA_VISIBLE | ANIMFILTER_CURVE_VISIBLE | ANIMFILTER_FOREDIT | ANIMFILTER_NODUPLIS);
@@ -1707,14 +1707,14 @@ static void sethandles_graph_keys(bAnimContext *ac, short mode)
 		FCurve *fcu = (FCurve *)ale->key_data;
 		
 		/* any selected keyframes for editing? */
-		if (ANIM_fcurve_keyframes_loop(NULL, fcu, NULL, sel_cb, NULL)) {
+		if (ANIM_fcurve_keyframes_loop(NULL, fcu, sel_cb, NULL, NULL)) {
 			/* change type of selected handles */
 			ANIM_fcurve_keyframes_loop(NULL, fcu, NULL, edit_cb, calchandles_fcurve);
-
+			
 			ale->update |= ANIM_UPDATE_DEFAULT;
 		}
 	}
-
+	
 	ANIM_animdata_update(ac, &anim_data);
 	ANIM_animdata_freelist(&anim_data);
 }

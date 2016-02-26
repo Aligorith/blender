@@ -91,7 +91,8 @@ static void deselect_graph_keys(bAnimContext *ac, short test, short sel, short d
 	
 	SpaceIpo *sipo = (SpaceIpo *)ac->sl;
 	KeyframeEditData ked = {{NULL}};
-	KeyframeEditFunc test_cb, sel_cb;
+	KeyframeEditPoll test_cb;
+	KeyframeEditFunc sel_cb;
 	
 	/* determine type-based settings */
 	filter = (ANIMFILTER_DATA_VISIBLE | ANIMFILTER_CURVE_VISIBLE | ANIMFILTER_NODUPLIS);
@@ -105,7 +106,7 @@ static void deselect_graph_keys(bAnimContext *ac, short test, short sel, short d
 	/* See if we should be selecting or deselecting */
 	if (test) {
 		for (ale = anim_data.first; ale; ale = ale->next) {
-			if (ANIM_fcurve_keyframes_loop(&ked, ale->key_data, NULL, test_cb, NULL)) {
+			if (ANIM_fcurve_keyframes_loop(&ked, ale->key_data, test_cb, NULL, NULL)) {
 				sel = SELECT_SUBTRACT;
 				break;
 			}
@@ -226,8 +227,9 @@ static void borderselect_graphkeys(
 	int filter, mapping_flag;
 	
 	SpaceIpo *sipo = (SpaceIpo *)ac->sl;
-	KeyframeEditData ked;
-	KeyframeEditFunc ok_cb, select_cb;
+	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	View2D *v2d = &ac->ar->v2d;
 	rctf rectf, scaled_rectf;
 	
@@ -243,7 +245,6 @@ static void borderselect_graphkeys(
 	ok_cb = ANIM_editkeyframes_ok(mode);
 	
 	/* init editing data */
-	memset(&ked, 0, sizeof(KeyframeEditData));
 	if (mode == BEZT_OK_REGION_LASSO) {
 		struct KeyframeEdit_LassoData *data_lasso = data;
 		data_lasso->rectf_scaled = &scaled_rectf;
@@ -265,27 +266,27 @@ static void borderselect_graphkeys(
 	}
 	else
 		mapping_flag = ANIM_UNITCONV_ONLYKEYS;
-
+	
 	mapping_flag |= ANIM_get_normalization_flags(ac);
-
+	
 	/* loop over data, doing border select */
 	for (ale = anim_data.first; ale; ale = ale->next) {
 		AnimData *adt = ANIM_nla_mapping_get(ac, ale);
 		FCurve *fcu = (FCurve *)ale->key_data;
 		float offset;
 		float unit_scale = ANIM_unit_mapping_get_factor(ac->scene, ale->id, fcu, mapping_flag, &offset);
-
+		
 		/* apply NLA mapping to all the keyframes, since it's easier than trying to
 		 * guess when a callback might use something different
 		 */
 		if (adt)
 			ANIM_nla_mapping_apply_fcurve(adt, ale->key_data, 0, incl_handles == 0);
-
+		
 		scaled_rectf.xmin = rectf.xmin;
 		scaled_rectf.xmax = rectf.xmax;
 		scaled_rectf.ymin = rectf.ymin / unit_scale - offset;
 		scaled_rectf.ymax = rectf.ymax / unit_scale - offset;
-
+		
 		/* set horizontal range (if applicable) 
 		 * NOTE: these values are only used for x-range and y-range but not region 
 		 *      (which uses ked.data, i.e. rectf)
@@ -300,7 +301,7 @@ static void borderselect_graphkeys(
 		}
 		
 		/* firstly, check if any keyframes will be hit by this */
-		if (ANIM_fcurve_keyframes_loop(&ked, fcu, NULL, ok_cb, NULL)) {
+		if (ANIM_fcurve_keyframes_loop(&ked, fcu, ok_cb, NULL, NULL)) {
 			/* select keyframes that are in the appropriate places */
 			ANIM_fcurve_keyframes_loop(&ked, fcu, ok_cb, select_cb, NULL);
 			
@@ -595,8 +596,9 @@ static void markers_selectkeys_between(bAnimContext *ac)
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc ok_cb, select_cb;
 	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	float min, max;
 	
 	/* get extreme markers */
@@ -607,7 +609,7 @@ static void markers_selectkeys_between(bAnimContext *ac)
 	/* get editing funcs + data */
 	ok_cb = ANIM_editkeyframes_ok(BEZT_OK_FRAMERANGE);
 	select_cb = ANIM_editkeyframes_select(SELECT_ADD);
-
+	
 	ked.f1 = min;
 	ked.f2 = max;
 	
@@ -618,7 +620,7 @@ static void markers_selectkeys_between(bAnimContext *ac)
 	/* select keys in-between */
 	for (ale = anim_data.first; ale; ale = ale->next) {
 		AnimData *adt = ANIM_nla_mapping_get(ac, ale);
-
+		
 		if (adt) {
 			ANIM_nla_mapping_apply_fcurve(adt, ale->key_data, 0, 1);
 			ANIM_fcurve_keyframes_loop(&ked, ale->key_data, ok_cb, select_cb, NULL);
@@ -641,13 +643,11 @@ static void columnselect_graph_keys(bAnimContext *ac, short mode)
 	bAnimListElem *ale;
 	int filter;
 	
+	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	Scene *scene = ac->scene;
 	CfraElem *ce;
-	KeyframeEditFunc select_cb, ok_cb;
-	KeyframeEditData ked;
-	
-	/* initialize keyframe editing data */
-	memset(&ked, 0, sizeof(KeyframeEditData));
 	
 	/* build list of columns */
 	switch (mode) {
@@ -760,7 +760,7 @@ static int graphkeys_select_linked_exec(bContext *C, wmOperator *UNUSED(op))
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc ok_cb = ANIM_editkeyframes_ok(BEZT_OK_SELECTED);
+	KeyframeEditPoll ok_cb = ANIM_editkeyframes_ok(BEZT_OK_SELECTED);
 	KeyframeEditFunc sel_cb = ANIM_editkeyframes_select(SELECT_ADD);
 	
 	/* get editor data */
@@ -775,7 +775,7 @@ static int graphkeys_select_linked_exec(bContext *C, wmOperator *UNUSED(op))
 		FCurve *fcu = (FCurve *)ale->key_data;
 		
 		/* check if anything selected? */
-		if (ANIM_fcurve_keyframes_loop(NULL, fcu, NULL, ok_cb, NULL)) {
+		if (ANIM_fcurve_keyframes_loop(NULL, fcu, ok_cb, NULL, NULL)) {
 			/* select every keyframe in this curve then */
 			ANIM_fcurve_keyframes_loop(NULL, fcu, NULL, sel_cb, NULL);
 		}
@@ -936,8 +936,9 @@ static void graphkeys_select_leftright(bAnimContext *ac, short leftright, short 
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc ok_cb, select_cb;
 	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	Scene *scene = ac->scene;
 	
 	/* if select mode is replace, deselect all keyframes (and channels) first */
@@ -1428,8 +1429,9 @@ static void graphkeys_mselect_column(bAnimContext *ac, const int mval[2], short 
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc select_cb, ok_cb;
-	KeyframeEditData ked;
+	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	tNearestVertInfo *nvi;
 	float selx = (float)ac->scene->r.cfra;
 	
@@ -1457,9 +1459,6 @@ static void graphkeys_mselect_column(bAnimContext *ac, const int mval[2], short 
 		 */
 		deselect_graph_keys(ac, 0, SELECT_SUBTRACT, false);
 	}
-	
-	/* initialize keyframe editing data */
-	memset(&ked, 0, sizeof(KeyframeEditData));
 	
 	/* set up BezTriple edit callbacks */
 	select_cb = ANIM_editkeyframes_select(select_mode);

@@ -90,7 +90,8 @@ static void deselect_action_keys(bAnimContext *ac, short test, short sel)
 	int filter;
 	
 	KeyframeEditData ked = {{NULL}};
-	KeyframeEditFunc test_cb, sel_cb;
+	KeyframeEditPoll test_cb;
+	KeyframeEditFunc sel_cb;
 	
 	/* determine type-based settings */
 	if (ELEM(ac->datatype, ANIMCONT_GPENCIL, ANIMCONT_MASK))
@@ -120,7 +121,7 @@ static void deselect_action_keys(bAnimContext *ac, short test, short sel)
 				}
 			}
 			else {
-				if (ANIM_fcurve_keyframes_loop(&ked, ale->key_data, NULL, test_cb, NULL)) {
+				if (ANIM_fcurve_keyframes_loop(&ked, ale->key_data, test_cb, NULL, NULL)) {
 					sel = SELECT_SUBTRACT;
 					break;
 				}
@@ -208,8 +209,9 @@ static void borderselect_action(bAnimContext *ac, const rcti rect, short mode, s
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditData ked;
-	KeyframeEditFunc ok_cb, select_cb;
+	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	View2D *v2d = &ac->ar->v2d;
 	rctf rectf;
 	float ymin = 0, ymax = (float)(-ACHANNEL_HEIGHT_HALF);
@@ -230,9 +232,6 @@ static void borderselect_action(bAnimContext *ac, const rcti rect, short mode, s
 	else
 		ok_cb = NULL;
 		
-	/* init editing data */
-	memset(&ked, 0, sizeof(KeyframeEditData));
-	
 	/* loop over data, doing border select */
 	for (ale = anim_data.first; ale; ale = ale->next) {
 		AnimData *adt = ANIM_nla_mapping_get(ac, ale);
@@ -403,8 +402,9 @@ static void markers_selectkeys_between(bAnimContext *ac)
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc ok_cb, select_cb;
 	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	float min, max;
 	
 	/* get extreme markers */
@@ -455,10 +455,11 @@ static void columnselect_action_keys(bAnimContext *ac, short mode)
 	bAnimListElem *ale;
 	int filter;
 	
+	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	Scene *scene = ac->scene;
 	CfraElem *ce;
-	KeyframeEditFunc select_cb, ok_cb;
-	KeyframeEditData ked = {{NULL}};
 	
 	/* initialize keyframe editing data */
 	
@@ -592,7 +593,7 @@ static int actkeys_select_linked_exec(bContext *C, wmOperator *UNUSED(op))
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc ok_cb = ANIM_editkeyframes_ok(BEZT_OK_SELECTED);
+	KeyframeEditPoll ok_cb = ANIM_editkeyframes_ok(BEZT_OK_SELECTED);
 	KeyframeEditFunc sel_cb = ANIM_editkeyframes_select(SELECT_ADD);
 	
 	/* get editor data */
@@ -607,7 +608,7 @@ static int actkeys_select_linked_exec(bContext *C, wmOperator *UNUSED(op))
 		FCurve *fcu = (FCurve *)ale->key_data;
 		
 		/* check if anything selected? */
-		if (ANIM_fcurve_keyframes_loop(NULL, fcu, NULL, ok_cb, NULL)) {
+		if (ANIM_fcurve_keyframes_loop(NULL, fcu, ok_cb, NULL, NULL)) {
 			/* select every keyframe in this curve then */
 			ANIM_fcurve_keyframes_loop(NULL, fcu, NULL, sel_cb, NULL);
 		}
@@ -767,8 +768,9 @@ static void actkeys_select_leftright(bAnimContext *ac, short leftright, short se
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc ok_cb, select_cb;
 	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	Scene *scene = ac->scene;
 	
 	/* if select mode is replace, deselect all keyframes (and channels) first */
@@ -944,7 +946,8 @@ void ACTION_OT_select_leftright(wmOperatorType *ot)
 static void actkeys_mselect_single(bAnimContext *ac, bAnimListElem *ale, short select_mode, float selx)
 {
 	KeyframeEditData ked = {{NULL}};
-	KeyframeEditFunc select_cb, ok_cb;
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	
 	/* get functions for selecting keyframes */
 	select_cb = ANIM_editkeyframes_select(select_mode);
@@ -996,8 +999,9 @@ static void actkeys_mselect_column(bAnimContext *ac, short select_mode, float se
 	bAnimListElem *ale;
 	int filter;
 	
-	KeyframeEditFunc select_cb, ok_cb;
 	KeyframeEditData ked = {{NULL}};
+	KeyframeEditFunc select_cb;
+	KeyframeEditPoll ok_cb;
 	
 	/* set up BezTriple edit callbacks */
 	select_cb = ANIM_editkeyframes_select(select_mode);

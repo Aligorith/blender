@@ -886,7 +886,7 @@ static void poselib_apply_pose(tPoseLib_PreviewData *pld)
 	bActionGroup *agrp;
 	
 	KeyframeEditData ked = {{NULL}};
-	KeyframeEditFunc group_ok_cb;
+	KeyframeEditPoll group_ok_cb;
 	int frame = 1;
 	
 	/* get the frame */
@@ -905,7 +905,7 @@ static void poselib_apply_pose(tPoseLib_PreviewData *pld)
 	/* start applying - only those channels which have a key at this point in time! */
 	for (agrp = act->groups.first; agrp; agrp = agrp->next) {
 		/* check if group has any keyframes */
-		if (ANIM_animchanneldata_keyframes_loop(&ked, NULL, agrp, ALE_GROUP, NULL, group_ok_cb, NULL)) {
+		if (ANIM_animchanneldata_keyframes_loop(&ked, NULL, agrp, ALE_GROUP, group_ok_cb, NULL, NULL)) {
 			/* has keyframe on this frame, so try to get a PoseChannel with this name */
 			pchan = BKE_pose_channel_find_name(pose, agrp->name);
 			
