@@ -962,8 +962,11 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 		center2d[1] = pso->ar->winy / 2.0f;
 	}
 	
-	/* Compute rotation angle */
-	angle = psculpt_brush_calc_input_angle(pso, center2d);
+	/* Compute rotation angle from mouse movements
+	 * - Allow the strength of the effect to be controlled using brush strength
+	 */
+	angle  = psculpt_brush_calc_input_angle(pso, center2d);
+	angle *= psculpt_brush_calc_influence(pso, dist); 
 	
 	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) 
 	 * NOTE: viewinv not perspinv here, or else rotations are inverted
@@ -972,7 +975,7 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	normalize_v3(axis);
 	
 	/* Compute rotation matrix */
-	axis_angle_normalized_to_mat3(rmat, axis, angle * brush->strength / 0.5f);
+	axis_angle_normalized_to_mat3(rmat, axis, angle);
 	
 	/* Perform rotation */
 	pchan_do_rotate(pso->ob, pchan, rmat);
