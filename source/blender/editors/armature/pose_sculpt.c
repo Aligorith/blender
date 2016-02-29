@@ -877,39 +877,33 @@ static void psculpt_brush_calc_trackball(tPoseSculptingOp *pso)
 /* Compute angle from mouse movements
  * Copied from transform_input.c - InputAngle()
  */
-static float InputAngle(tPoseSculptingOp *pso, float center[2])
+static float psculpt_brush_calc_input_angle(tPoseSculptingOp *pso, float center[2])
 {
 	double mval[2]      = {(double)pso->mval[0],      (double)pso->mval[1]};
 	double mval_prev[2] = {(double)pso->lastmouse[0], (double)pso->lastmouse[1]};
-	//double center[2]    = {(double)pso->center[0],    (double)pso->center[1]};
-	
-	printf("m[%f, %f]       p[%f, %f]       c[%f, %f]\n", 
-		mval[0], mval[1],
-		mval_prev[0], mval_prev[1],
-		center[0], center[1]);
 	
 	double dx2 = mval[0] - center[0];
 	double dy2 = mval[1] - center[1];
 	double B = sqrt(dx2 * dx2 + dy2 * dy2);
-
+	
 	double dx1 = mval_prev[0] - center[0];
 	double dy1 = mval_prev[1] - center[1];
 	double A = sqrt(dx1 * dx1 + dy1 * dy1);
-
+	
 	double dx3 = mval[0] - mval_prev[0];
 	double dy3 = mval[1] - mval_prev[1];
-
+	
 	/* use doubles here, to make sure a "1.0" (no rotation) doesn't become 9.999999e-01, which gives 0.02 for acos */
 	double deler = (((dx1 * dx1 + dy1 * dy1) +
 	                 (dx2 * dx2 + dy2 * dy2) -
 	                 (dx3 * dx3 + dy3 * dy3)) / (2.0 * ((A * B) ? (A * B) : 1.0)));
 	/* ((A * B) ? (A * B) : 1.0) this takes care of potential divide by zero errors */
-
+	
 	float dphi;
-
+	
 	dphi = saacos((float)deler);
 	if ((dx1 * dy2 - dx2 * dy1) > 0.0) dphi = -dphi;
-
+	
 	/* If the angle is zero, because of lack of precision close to the 1.0 value in acos
 	 * approximate the angle with the opposite side of the normalized triangle
 	 * This is a good approximation here since the smallest acos value seems to be around
@@ -917,24 +911,20 @@ static float InputAngle(tPoseSculptingOp *pso, float center[2])
 	 */
 	if (dphi == 0) {
 		double dx, dy;
-
+		
 		dx2 /= A;
 		dy2 /= A;
-
+		
 		dx1 /= B;
 		dy1 /= B;
-
+		
 		dx = dx1 - dx2;
 		dy = dy1 - dy2;
-
+		
 		dphi = sqrt(dx * dx + dy * dy);
 		if ((dx1 * dy2 - dx2 * dy1) > 0.0) dphi = -dphi;
 	}
 	
-	//pso->angle += ((double)dphi * 1.0 / 30.0); /* precision factor */
-	
-	//return pso->angle;
-	printf("      dphi = %f\n", dphi);
 	return dphi;
 }
 
@@ -962,23 +952,23 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	mul_m4_v3(pso->ob->obmat, center);
 	
 	if (ED_view3d_project_float_global(pso->ar, center, center2d, V3D_PROJ_TEST_NOP) != V3D_PROJ_RET_OK) {
-		/* XXX, 2.64 and prior did this, weak! */
 		center2d[0] = pso->ar->winx / 2.0f;
 		center2d[1] = pso->ar->winy / 2.0f;
 	}
 	
 	/* Compute rotation angle */
-	angle = InputAngle(pso, center2d);
-	printf("  -> Angle = %f (d = %f, %f)\n", RAD2DEG(angle), pso->mval[0] - pso->lastmouse[0], pso->mval[1] - pso->lastmouse[1]);
-	angle = -angle; // invert, as this always seems to work opposite to what we want!
+	angle = psculpt_brush_calc_input_angle(pso, center2d);
 	
-	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) */
-	negate_v3_v3(axis, rv3d->persinv[2]);
+	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) 
+	 * NOTE: viewinv not perspinv here, or else rotations are inverted
+	 */
+	negate_v3_v3(axis, rv3d->viewinv[2]);
 	normalize_v3(axis);
 	
 	/* Compute rotation matrix */
-	axis_angle_normalized_to_mat3(rmat, axis, angle * brush->strength);
+	axis_angle_normalized_to_mat3(rmat, axis, angle * brush->strength / 0.5f);
 	
+	/* Perform rotation */
 	pchan_do_rotate(pso->ob, pchan, rmat);
 }
 
@@ -1571,13 +1561,7 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 			case PSCULPT_BRUSH_ADJUST:
 			{
 				if (pso->invert) {
-					/* Compute rotate effect */
-					//psculpt_brush_calc_normalroll(pso);
-					
-					/* Apply rotation transform to bones... */
-					//changed = psculpt_brush_do_apply(pso, psculpt_brush_adjust_apply);
-					
-					pso->invert = false;
+					/* Compute rotate effect - Like normal "R" rotation */
 					changed = psculpt_brush_do_apply(pso, psculpt_brush_rotate_apply);
 				}
 				else {
