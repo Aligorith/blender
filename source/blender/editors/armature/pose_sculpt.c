@@ -873,6 +873,13 @@ static void psculpt_brush_calc_trackball(tPoseSculptingOp *pso)
 	interp_m3_m3m3(pso->rmat, refmat, mat, brush->strength);
 }
 
+/* "Adjust" Brush - i.e. a simple rotation transform */
+static void psculpt_brush_adjust_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float UNUSED(dist))
+{
+	pchan_do_rotate(pso->ob, pchan, pso->rmat);
+}
+
+/* ------------- */
 
 /* Compute angle from mouse movements
  * Copied from transform_input.c - InputAngle()
@@ -933,7 +940,6 @@ static float psculpt_brush_calc_input_angle(tPoseSculptingOp *pso, float center[
  * The rotation here is performed around the screen-space plane's normal,
  * just like "normal rotations" are usually performed
  */
-//static void psculpt_brush_calc_normalroll(tPoseSculptingOp *pso)
 static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
 {
 	PSculptBrushData *brush = pso->brush;
@@ -972,13 +978,6 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	pchan_do_rotate(pso->ob, pchan, rmat);
 }
 
-
-
-/* "Adjust" Brush - i.e. a simple rotation transform */
-static void psculpt_brush_adjust_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float UNUSED(dist))
-{
-	pchan_do_rotate(pso->ob, pchan, pso->rmat);
-}
 
 /* Curl -----------------------------------------------_ */
 
