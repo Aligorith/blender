@@ -235,12 +235,6 @@ static PointerRNA rna_PoseSculpt_brush_get(PointerRNA *ptr)
 	return rna_pointer_inherit_refine(ptr, &RNA_PoseSculptBrush, brush);
 }
 
-static PointerRNA rna_PSculptBrush_curve_get(PointerRNA *ptr)
-{
-	// FIXME: this is just a dummy for now, but could be useful later?
-	return rna_pointer_inherit_refine(ptr, &RNA_CurveMapping, NULL);
-}
-
 static char *rna_PoseSculpt_path(PointerRNA *UNUSED(ptr))
 {
 	return BLI_strdup("tool_settings.pose_sculpt");
