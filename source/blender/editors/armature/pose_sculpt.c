@@ -949,12 +949,26 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	PSculptBrushData *brush = pso->brush;
 	RegionView3D *rv3d = pso->rv3d;
 	
-	float axis[3];
-	float angle;
+	float center[3], center2d[2];
+	float axis[3], angle;
 	float rmat[3][3];
 	
+	/* Compute 2D center of rotation (needed for calculating the angle)
+	 * Adapted from:
+	 *  - calculateCenter2D()
+	 *  - projectFloatView()
+	 */	
+	copy_v3_v3(center, pchan->pose_mat[3]);
+	mul_m4_v3(pso->ob->obmat, center);
+	
+	if (ED_view3d_project_float_global(pso->ar, center, center2d, V3D_PROJ_TEST_NOP) != V3D_PROJ_RET_OK) {
+		/* XXX, 2.64 and prior did this, weak! */
+		center2d[0] = pso->ar->winx / 2.0f;
+		center2d[1] = pso->ar->winy / 2.0f;
+	}
+	
 	/* Compute rotation angle */
-	angle = InputAngle(pso, pchan->pose_mat[3]);
+	angle = InputAngle(pso, center2d);
 	
 	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) */
 	negate_v3_v3(axis, rv3d->persinv[2]);
