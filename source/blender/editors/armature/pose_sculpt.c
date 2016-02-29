@@ -949,7 +949,7 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	PSculptBrushData *brush = pso->brush;
 	RegionView3D *rv3d = pso->rv3d;
 	
-	float center[3], center2d[2];
+	float center[3] = {0.0f}, center2d[2] = {0.0f};
 	float axis[3], angle;
 	float rmat[3][3];
 	
@@ -969,13 +969,15 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	
 	/* Compute rotation angle */
 	angle = InputAngle(pso, center2d);
+	printf("  -> Angle = %f (d = %f, %f)\n", RAD2DEG(angle), pso->mval[0] - pso->lastmouse[0], pso->mval[1] - pso->lastmouse[1]);
+	angle = -angle; // invert, as this always seems to work opposite to what we want!
 	
 	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) */
 	negate_v3_v3(axis, rv3d->persinv[2]);
 	normalize_v3(axis);
 	
 	/* Compute rotation matrix */
-	axis_angle_normalized_to_mat3(rmat, axis, angle * brush->strength / 0.5f);
+	axis_angle_normalized_to_mat3(rmat, axis, angle * brush->strength);
 	
 	pchan_do_rotate(pso->ob, pchan, rmat);
 }
@@ -1575,6 +1577,7 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 					/* Apply rotation transform to bones... */
 					//changed = psculpt_brush_do_apply(pso, psculpt_brush_adjust_apply);
 					
+					pso->invert = false;
 					changed = psculpt_brush_do_apply(pso, psculpt_brush_rotate_apply);
 				}
 				else {
