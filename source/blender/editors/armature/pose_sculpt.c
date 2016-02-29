@@ -942,7 +942,6 @@ static float psculpt_brush_calc_input_angle(tPoseSculptingOp *pso, float center[
  */
 static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
 {
-	PSculptBrushData *brush = pso->brush;
 	RegionView3D *rv3d = pso->rv3d;
 	
 	float center[3] = {0.0f}, center2d[2] = {0.0f};
@@ -1507,7 +1506,6 @@ static bool psculpt_brush_do_apply(tPoseSculptingOp *pso, PSculptBrushCallback b
 			}
 			
 			/* tag as changed */
-			// TODO: add to autokeying cache...
 			changed |= true;
 		}
 	}

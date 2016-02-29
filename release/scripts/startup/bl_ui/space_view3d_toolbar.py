@@ -818,14 +818,26 @@ class VIEW3D_PT_tools_posemode_sculpt(View3DPanel, Panel):
             col.prop(brush, "rate", slider=True)
 
 
-        if tool not in ('NONE', 'RESET'):
-            col.separator()
-            col.row().prop(brush, "direction", expand=True)
+        layout.separator()
+        if tool in ('DRAW', 'ADJUST'): # XXX
+            row = layout.row(align=True)
+            row.prop_enum(brush, "direction", 'ADD', text="Tumble")      # Trackball
+            row.prop_enum(brush, "direction", 'SUBTRACT', text="Follow") # Rotate
+        elif tool in ('CURL', 'TWIST'):
+            row = layout.row(align=True)
+            row.prop_enum(brush, "direction", 'ADD', text="CCW")
+            row.prop_enum(brush, "direction", 'SUBTRACT', text="CW")
+        elif tool == 'RESET':
+            row = layout.row(align=True)
+            row.prop_enum(brush, "direction", 'ADD', text="Rest Pose")
+            row.prop_enum(brush, "direction", 'SUBTRACT', text="Keyed")
+        elif tool not in ('NONE', 'GRAB'):
+            layout.row().prop(brush, "direction", expand=True)
 
         if tool == 'GRAB':
-            col.prop(brush, "use_initial_only")
+            layout.prop(brush, "use_initial_only")
         if tool in ('CURL', 'STRETCH'):
-            col.row().prop(brush, "xz_mode", expand=True)
+            layout.row().prop(brush, "xz_mode", expand=True)
 
         layout.separator()
         layout.prop(settings, "use_select_mask")
