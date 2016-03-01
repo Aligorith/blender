@@ -797,7 +797,6 @@ static void psculpt_brush_smooth_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 		const float dist_thresh = 0.005f; // XXX: Make this a brush setting, so that users can adjust sensitivity...
 		
 		if (len_v3v3(pchan->pose_head, parent->pose_tail) > dist_thresh) {
-			printf("discarding %s -> %s : too far away (%f)", parent->name, pchan->name, len_v3v3(pchan->pose_head, parent->pose_tail));
 			return;
 		}
 	}
@@ -814,8 +813,8 @@ static void psculpt_brush_smooth_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	normalize_v3(bone_vec);
 	normalize_v3(combined_vec);
 	
-	printf("combined (%s -> %s): %f %f %f\n", parent->name, pchan->name, parent_vec[0], parent_vec[1], parent_vec[2]);
-	printf("bone (%s -> %s): %f %f %f\n",     parent->name, pchan->name, bone_vec[0], bone_vec[1], bone_vec[2]);
+	//printf("combined (%s -> %s): %f %f %f\n", parent->name, pchan->name, parent_vec[0], parent_vec[1], parent_vec[2]);
+	//printf("bone (%s -> %s): %f %f %f\n",     parent->name, pchan->name, bone_vec[0], bone_vec[1], bone_vec[2]);
 	
 	
 	/* 2) Compute angles to rotate each bone by to smooth out the transform */
