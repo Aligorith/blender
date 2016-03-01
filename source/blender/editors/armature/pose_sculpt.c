@@ -781,12 +781,26 @@ static void psculpt_brush_smooth_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	const float damp_fac = 0.1f;
 	const float fac = psculpt_brush_calc_influence(pso, dist) * damp_fac;
 	
-	/* This brush only works when the bone has a parent that we can align with */
-	// XXX: Unconnected bones not supported yet (too many edge cases), though those are the ones that need this most!
+	
+	/* This brush only works when the bone has a parent that we can align with
+	 *
+	 * We allow unconnected parents, as in some rigs (e.g. Sintel/Rigify)
+	 * apparently connected bone chains (e.g. arms) may in fact be disjointed.
+	 * To prevent disjointed cases (e.g. lips/jaw relative to head bone) from
+	 * causing problems, we only allow unconnected bones if they fall within
+	 * a close distance of each other...
+	 */
 	if (parent == NULL)
 		return;
-	//if ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)
-	//	return;
+		
+	if ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0) {
+		const float dist_thresh = 0.005f; // XXX: Make this a brush setting, so that users can adjust sensitivity...
+		
+		if (len_v3v3(pchan->pose_head, parent->pose_tail) > dist_thresh) {
+			printf("discarding %s -> %s : too far away (%f)", parent->name, pchan->name, len_v3v3(pchan->pose_head, parent->pose_tail));
+			return;
+		}
+	}
 	
 	
 	/* 1) Compute vectors for both bones (tail - head) and
