@@ -813,7 +813,7 @@ class VIEW3D_PT_tools_posemode_sculpt(View3DPanel, Panel):
             subcol.prop(brush, "use_pressure_strength", text="")
             col.prop(brush, "use_falloff") # XXX: should be with rate?
 
-        if tool in ('CURL', 'STRETCH', 'TWIST', 'RESET'):
+        if tool in ('CURL', 'STRETCH', 'TWIST', 'RESET', 'SMOOTH'):
             col.separator()
             col.prop(brush, "rate", slider=True)
 
@@ -831,7 +831,7 @@ class VIEW3D_PT_tools_posemode_sculpt(View3DPanel, Panel):
             row = layout.row(align=True)
             row.prop_enum(brush, "direction", 'ADD', text="Rest Pose")
             row.prop_enum(brush, "direction", 'SUBTRACT', text="Keyed")
-        elif tool not in ('NONE', 'GRAB'):
+        elif tool not in ('NONE', 'GRAB', 'SMOOTH'):
             layout.row().prop(brush, "direction", expand=True)
 
         if tool == 'GRAB':
