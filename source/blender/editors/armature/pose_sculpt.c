@@ -777,7 +777,9 @@ static void psculpt_brush_smooth_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	bPoseChannel *parent = pchan->parent;
 	float parent_vec[3], bone_vec[3], combined_vec[3];
 	float refmat[3][3], mat[3][3], rmat[3][3];
-	const float fac = psculpt_brush_calc_influence(pso, dist);
+	
+	const float damp_fac = 0.1f;
+	const float fac = psculpt_brush_calc_influence(pso, dist) * damp_fac;
 	
 	/* This brush only works when the bone has a parent that we can align with */
 	// XXX: Unconnected bones not supported yet (too many edge cases), though those are the ones that need this most!
@@ -1809,7 +1811,7 @@ static int psculpt_brush_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	psculpt_brush_apply_event(C, op, event);
 	
 	/* register timer for increasing influence by hovering over an area */
-	if (ELEM(pset->brushtype, PSCULPT_BRUSH_CURL, PSCULPT_BRUSH_STRETCH, PSCULPT_BRUSH_TWIST, PSCULPT_BRUSH_RESET))
+	if (ELEM(pset->brushtype, PSCULPT_BRUSH_CURL, PSCULPT_BRUSH_STRETCH, PSCULPT_BRUSH_TWIST, PSCULPT_BRUSH_RESET, PSCULPT_BRUSH_SMOOTH))
 	{
 		PSculptBrushData *brush = psculpt_get_brush(scene);
 		pso->timer = WM_event_add_timer(CTX_wm_manager(C), CTX_wm_window(C), TIMER, brush->rate);
