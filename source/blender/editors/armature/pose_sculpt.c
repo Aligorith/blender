@@ -774,7 +774,53 @@ static void psculpt_brush_select_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 /* "Smooth" brush */
 static void psculpt_brush_smooth_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
 {
+	bPoseChannel *parent = pchan->parent;
+	float parent_vec[3], bone_vec[3], combined_vec[3];
+	float refmat[3][3], mat[3][3], rmat[3][3];
+	const float fac = psculpt_brush_calc_influence(pso, dist);
 	
+	/* This brush only works when the bone has a parent that we can align with */
+	// XXX: Unconnected bones not supported yet (too many edge cases), though those are the ones that need this most!
+	if (parent == NULL)
+		return;
+	//if ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)
+	//	return;
+	
+	
+	/* 1) Compute vectors for both bones (tail - head) and
+	 *    the "combined" vector (last tail - first head)
+	 */
+	sub_v3_v3v3(parent_vec,   parent->pose_tail, parent->pose_head);
+	sub_v3_v3v3(bone_vec,     pchan->pose_tail,  pchan->pose_head);
+	sub_v3_v3v3(combined_vec, pchan->pose_tail,  parent->pose_head);
+	
+	normalize_v3(parent_vec);
+	normalize_v3(bone_vec);
+	normalize_v3(combined_vec);
+	
+	printf("combined (%s -> %s): %f %f %f\n", parent->name, pchan->name, parent_vec[0], parent_vec[1], parent_vec[2]);
+	printf("bone (%s -> %s): %f %f %f\n",     parent->name, pchan->name, bone_vec[0], bone_vec[1], bone_vec[2]);
+	
+	
+	/* 2) Compute angles to rotate each bone by to smooth out the transform */
+	// XXX: Perhaps the current bone should only be manipulated once we know what's going on with the parent?
+	unit_m3(refmat);
+	
+	/* 2a) Parent First */
+	rotation_between_vecs_to_mat3(mat, parent_vec, combined_vec);
+	interp_m3_m3m3(rmat, refmat, mat, fac);
+	pchan_do_rotate(pso->ob, parent, rmat);
+	
+	/* 2b) Bone Second */
+	rotation_between_vecs_to_mat3(mat, bone_vec, combined_vec);
+	interp_m3_m3m3(rmat, refmat, mat, fac);
+	pchan_do_rotate(pso->ob, pchan, rmat);
+	
+	
+	/* 3) Recalculate transforms on both bones, so that the endpoints will
+	 * be valid when doing the next bone in the chain
+	 */
+	// TODO...
 }
 
 /* Grab ------------------------------------------------ */
@@ -1578,9 +1624,7 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 				
 			case PSCULPT_BRUSH_SMOOTH:
 			{
-				// XXX: placeholder
 				changed = psculpt_brush_do_apply(pso, psculpt_brush_smooth_apply);
-				
 				break;
 			}
 				
