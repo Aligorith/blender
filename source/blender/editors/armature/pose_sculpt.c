@@ -1183,7 +1183,7 @@ static void psculpt_brush_stretch_apply(tPoseSculptingOp *pso, bPoseChannel *pch
 {
 	PSculptBrushData *brush = pso->brush;
 	const short locks = pchan->protectflag;
-	const float DAMP_FAC = 0.1f; /* damping factor - to be configurable? */
+	const float DAMP_FAC = 0.01f; /* damping factor - to be configurable? */
 	float fac, invfac;
 	
 	/* scale factor must be greater than 1 for add, and less for subtract */
@@ -1885,7 +1885,7 @@ static int psculpt_brush_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	psculpt_brush_apply_event(C, op, event);
 	
 	/* register timer for increasing influence by hovering over an area */
-	if (ELEM(pset->brushtype, PSCULPT_BRUSH_CURL, PSCULPT_BRUSH_STRETCH, PSCULPT_BRUSH_TWIST, PSCULPT_BRUSH_RESET, PSCULPT_BRUSH_SMOOTH))
+	if (ELEM(pset->brushtype, PSCULPT_BRUSH_CURL, PSCULPT_BRUSH_TWIST, PSCULPT_BRUSH_RESET, PSCULPT_BRUSH_SMOOTH))
 	{
 		PSculptBrushData *brush = psculpt_get_brush(scene);
 		pso->timer = WM_event_add_timer(CTX_wm_manager(C), CTX_wm_window(C), TIMER, brush->rate);
