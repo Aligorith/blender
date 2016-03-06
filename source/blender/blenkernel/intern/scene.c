@@ -658,6 +658,10 @@ void BKE_scene_init(Scene *sce)
 		psculpt->brush[a].size = 50;
 		psculpt->brush[a].rate = 0.01f;
 		psculpt->brush[a].flag = PSCULPT_BRUSH_FLAG_USE_PRESSURE | PSCULPT_BRUSH_FLAG_USE_FALLOFF;
+		
+		psculpt->brush[a].bulge = 1.0f;
+		psculpt->brush[a].bulge_min = 1.0f;
+		psculpt->brush[a].bulge_max = 1.0f;
 	}
 	psculpt->brush[PSCULPT_BRUSH_SMOOTH].strength = 0.25f;
 	psculpt->brush[PSCULPT_BRUSH_CURL].strength = 0.25f;
@@ -665,6 +669,7 @@ void BKE_scene_init(Scene *sce)
 	psculpt->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
 	psculpt->brush[PSCULPT_BRUSH_CURL].xzMode = PSCULPT_BRUSH_DO_X;
 	psculpt->brush[PSCULPT_BRUSH_GRAB].flag |= PSCULPT_BRUSH_FLAG_GRAB_INITIAL;
+	psculpt->brush[PSCULPT_BRUSH_STRETCH].flag |= PSCULPT_BRUSH_FLAG_VOL_PRESERVE;
 
 	sce->r.ffcodecdata.audio_mixrate = 48000;
 	sce->r.ffcodecdata.audio_volume = 1.0f;

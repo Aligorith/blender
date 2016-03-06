@@ -314,6 +314,65 @@ static float psculpt_brush_calc_influence(tPoseSculptingOp *pso, float dist)
 
 /* ........................................................ */
 
+/* compute volume preservation scale factor (for xz axes) */
+static float psculpt_brush_calc_volume_preserve_correction(PSculptBrushData *brush, bPoseChannel *pchan, const float fac)
+{
+	const short locks = pchan->protectflag;
+	float invfac = fac;
+	
+	if (brush->flag & PSCULPT_BRUSH_FLAG_VOL_PRESERVE) {
+		/* Volume Preservation - Using the "bulge" method used for the Stretch To and Spline IK constraints */
+		// TODO: if the bone has an appropriate constraint with these settings already, use those settings?
+		float bulge = powf(1.0f / fac, brush->bulge);
+		
+		if (bulge > 1.0f) {
+			if (brush->flag & PSCULPT_BRUSH_USE_BULGE_MAX) {
+				float bulge_max = max_ff(brush->bulge_max, 1.0f);
+				float hard = min_ff(bulge, bulge_max);
+				
+				float range = bulge_max - 1.0f;
+				float scale_fac = (range > 0.0f) ? 1.0f / range : 0.0f;
+				float soft = 1.0f + range * atanf((bulge - 1.0f) * scale_fac) / (float)M_PI_2;
+				
+				bulge = interpf(soft, hard, brush->bulge_smooth);
+			}
+		}
+		if (bulge < 1.0f) {
+			if (brush->flag & PSCULPT_BRUSH_USE_BULGE_MIN) {
+				float bulge_min = CLAMPIS(brush->bulge_min, 0.0f, 1.0f);
+				float hard = max_ff(bulge, bulge_min);
+				
+				float range = 1.0f - bulge_min;
+				float scale_fac = (range > 0.0f) ? 1.0f / range : 0.0f;
+				float soft = 1.0f - range * atanf((1.0f - bulge) * scale_fac) / (float)M_PI_2;
+				
+				bulge = interpf(soft, hard, brush->bulge_smooth);
+			}
+		}
+		
+		/* factor to use varies depending on whether we have one or two axes to use... */
+		if ((brush->xzMode == PSCULPT_BRUSH_DO_XZ) && 
+		    (locks & (OB_LOCK_SCALEX | OB_LOCK_SCALEY)) == 0)
+		{
+			/* two axes, so each needs less of this applied... */
+			invfac = sqrtf(bulge);
+		}
+		else {
+			/* just a single axis gets this */
+			invfac = bulge;
+		}
+	}
+	else {
+		/* use same scale factor on "other" axes */
+		invfac = fac;
+	}
+	
+	/* return result */
+	return invfac;
+}
+
+/* ........................................................ */
+
 /* get euler rotation value to work with */
 static bool get_pchan_eul_rotation(float eul[3], short *order, const bPoseChannel *pchan)
 {
@@ -1123,8 +1182,9 @@ static void psculpt_brush_twist_apply(tPoseSculptingOp *pso, bPoseChannel *pchan
 static void psculpt_brush_stretch_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
 {
 	PSculptBrushData *brush = pso->brush;
+	const short locks = pchan->protectflag;
 	const float DAMP_FAC = 0.1f; /* damping factor - to be configurable? */
-	float fac;
+	float fac, invfac;
 	
 	/* scale factor must be greater than 1 for add, and less for subtract */
 	fac = psculpt_brush_calc_influence(pso, dist) * DAMP_FAC;
@@ -1138,19 +1198,20 @@ static void psculpt_brush_stretch_apply(tPoseSculptingOp *pso, bPoseChannel *pch
 	pchan->size[1] *= fac;
 	
 	/* scale on x/z axes, whichever isn't locked */
-	// TODO: investigate volume preserving stuff?
+	invfac = psculpt_brush_calc_volume_preserve_correction(brush, pchan, fac);
+	
 	if (ELEM(brush->xzMode, PSCULPT_BRUSH_DO_XZ, PSCULPT_BRUSH_DO_X) && 
-		(pchan->protectflag & OB_LOCK_SCALEX) == 0)
+		(locks & OB_LOCK_SCALEX) == 0)
 	{
 		/* apply to x axis */
-		pchan->size[0] *= fac;
+		pchan->size[0] *= invfac;
 	}
 	
 	if (ELEM(brush->xzMode, PSCULPT_BRUSH_DO_XZ, PSCULPT_BRUSH_DO_Z) && 
-		(pchan->protectflag & OB_LOCK_SCALEZ) == 0)
+		(locks & OB_LOCK_SCALEZ) == 0)
 	{
 		/* apply to z axis */
-		pchan->size[2] *= fac;
+		pchan->size[2] *= invfac;
 	}
 }
 

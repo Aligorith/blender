@@ -1140,12 +1140,14 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "PSculptBrushData");
 	RNA_def_struct_ui_text(srna, "Pose Sculpt Brush", "Pose sculpting brush");
 
+	/* size */
 	prop = RNA_def_property(srna, "size", PROP_INT, PROP_NONE);
 	RNA_def_property_range(prop, 1, MAX_BRUSH_PIXEL_RADIUS);
 	RNA_def_property_ui_range(prop, 1, 300, 10, 3);
 	RNA_def_property_ui_text(prop, "Radius", "Radius of the brush in pixels");
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
 
+	/* pressure settings */
 	prop = RNA_def_property(srna, "strength", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_range(prop, 0.001f, 1.0f);
 	RNA_def_property_ui_text(prop, "Strength", "Brush strength");
@@ -1162,17 +1164,20 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Use Falloff", "Strength of brush decays with distance from cursor");
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
 	
+	/* timer/rate */
 	prop = RNA_def_property(srna, "rate", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_range(prop, 0.001f, 1.0f);
 	RNA_def_property_ui_text(prop, "Rate", "Rate of brush application in seconds");
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
 	
+	/* brush mode - add/invert */
 	prop = RNA_def_property(srna, "direction", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");
 	RNA_def_property_enum_items(prop, prop_direction_items);
 	RNA_def_property_ui_text(prop, "Direction", "");
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update"); // XXX: to change color
 	
+	/* which of x and z axes to include */
 	// XXX: review this property...
 	prop = RNA_def_property(srna, "xz_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "xzMode");
@@ -1180,10 +1185,49 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "XZ Axis Behaviour", "Which axes (X and Z) get affected by brush");
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
 	
+	/* only include initial bones */
 	prop = RNA_def_property(srna, "use_initial_only", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSCULPT_BRUSH_FLAG_GRAB_INITIAL);
 	RNA_def_property_ui_text(prop, "Initial Bones Only", "Only affect the bones within the brush when the stroke was initiated");
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+	
+	
+	/* volume preservation settings */
+	prop = RNA_def_property(srna, "use_volume_preserve", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSCULPT_BRUSH_FLAG_VOL_PRESERVE);
+	RNA_def_property_ui_text(prop, "Preserve Volume", "Compensate for scaling one axis by applying suitable scaling to the other two axes");
+	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+	
+	prop = RNA_def_property(srna, "bulge", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 0.0, 100.f);
+	RNA_def_property_ui_text(prop, "Volume Variation", "Factor between volume variation and stretching");
+	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+
+	prop = RNA_def_property(srna, "use_bulge_min", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSCULPT_BRUSH_USE_BULGE_MIN);
+	RNA_def_property_ui_text(prop, "Use Volume Variation Minimum", "Use lower limit for volume variation");
+	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+
+	prop = RNA_def_property(srna, "use_bulge_max", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSCULPT_BRUSH_USE_BULGE_MAX);
+	RNA_def_property_ui_text(prop, "Use Volume Variation Maximum", "Use upper limit for volume variation");
+	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+
+	prop = RNA_def_property(srna, "bulge_min", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 0.0, 1.0f);
+	RNA_def_property_ui_text(prop, "Volume Variation Minimum", "Minimum volume stretching factor");
+	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+
+	prop = RNA_def_property(srna, "bulge_max", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_range(prop, 1.0, 100.0f);
+	RNA_def_property_ui_text(prop, "Volume Variation Maximum", "Maximum volume stretching factor");
+	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+
+	prop = RNA_def_property(srna, "bulge_smooth", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_range(prop, 0.0, 1.0f);
+	RNA_def_property_ui_text(prop, "Volume Variation Smoothness", "Strength of volume stretching clamping");
+	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
+
 }
 
 void RNA_def_sculpt_paint(BlenderRNA *brna)

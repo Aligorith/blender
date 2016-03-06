@@ -1072,6 +1072,10 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 					pset->brush[i].size = 50;
 					pset->brush[i].rate = 0.01f;
 					pset->brush[i].flag = PSCULPT_BRUSH_FLAG_USE_PRESSURE | PSCULPT_BRUSH_FLAG_USE_FALLOFF;
+					
+					pset->brush[i].bulge = 1.0f;
+					pset->brush[i].bulge_min = 1.0f;
+					pset->brush[i].bulge_max = 1.0f;
 				}
 				pset->brush[PSCULPT_BRUSH_SMOOTH].strength = 0.25f;
 				pset->brush[PSCULPT_BRUSH_CURL].strength = 0.25f;
@@ -1079,6 +1083,7 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 				pset->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
 				pset->brush[PSCULPT_BRUSH_CURL].xzMode = PSCULPT_BRUSH_DO_X;
 				pset->brush[PSCULPT_BRUSH_GRAB].flag |= PSCULPT_BRUSH_FLAG_GRAB_INITIAL;
+				pset->brush[PSCULPT_BRUSH_STRETCH].flag |= PSCULPT_BRUSH_FLAG_VOL_PRESERVE;
 			}
 		}
 	}

@@ -839,6 +839,27 @@ class VIEW3D_PT_tools_posemode_sculpt(View3DPanel, Panel):
         if tool in ('CURL', 'STRETCH'):
             layout.row().prop(brush, "xz_mode", expand=True)
 
+        if tool == 'STRETCH':
+            layout.separator()
+            layout.prop(brush, "use_volume_preserve")
+
+            if brush.use_volume_preserve:
+                layout.prop(brush, "bulge", text="Volume Variation")
+                split = layout.split()
+                col = split.column(align=True)
+                col.prop(brush, "use_bulge_min", text="Volume Min")
+                sub = col.column()
+                sub.active = brush.use_bulge_min
+                sub.prop(brush, "bulge_min", text="")
+                col = split.column(align=True)
+                col.prop(brush, "use_bulge_max", text="Volume Max")
+                sub = col.column()
+                sub.active = brush.use_bulge_max
+                sub.prop(brush, "bulge_max", text="")
+                col = layout.column()
+                col.active = brush.use_bulge_min or brush.use_bulge_max
+                col.prop(brush, "bulge_smooth", text="Smooth")
+
         layout.separator()
         layout.prop(settings, "use_select_mask")
 
