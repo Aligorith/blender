@@ -225,6 +225,7 @@ static void rna_PoseSculpt_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Poi
 static void rna_PSculptBrush_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	WM_main_add_notifier(NC_SPACE | ND_SPACE_VIEW3D, NULL);
+	WM_main_add_notifier(NC_SCENE | ND_TOOLSETTINGS, NULL);
 }
 
 static PointerRNA rna_PoseSculpt_brush_get(PointerRNA *ptr)

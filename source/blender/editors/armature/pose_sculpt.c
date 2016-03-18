@@ -1902,6 +1902,7 @@ static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event
 {
 	tPoseSculptingOp *pso = op->customdata;
 	bool redraw_region = false;
+	bool redraw_toolsettings = false;
 	
 	switch (event->type) {
 		/* mouse release or some other mbut click = abort! */
@@ -1941,8 +1942,9 @@ static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event
 				pso->brush->size += 3;
 				CLAMP_MAX(pso->brush->size, 300);
 			}
-				
+			
 			redraw_region = true;
+			redraw_toolsettings = true;
 			break;
 			
 		case WHEELDOWNMOUSE: 
@@ -1957,8 +1959,9 @@ static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event
 				pso->brush->size -= 3;
 				CLAMP_MIN(pso->brush->size, 1);
 			}
-				
+			
 			redraw_region = true;
+			redraw_toolsettings = true;
 			break;
 	}
 	
@@ -1966,6 +1969,12 @@ static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event
 	if (redraw_region) {
 		ARegion *ar = CTX_wm_region(C);
 		ED_region_tag_redraw(ar);
+	}
+	
+	/* Redraw tool settings? */
+	if (redraw_toolsettings) {
+		/* redraw for changes in brush settings */
+		WM_event_add_notifier(C, NC_SCENE | ND_TOOLSETTINGS, NULL);
 	}
 	
 	return OPERATOR_RUNNING_MODAL;
