@@ -1096,7 +1096,7 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 	
 		{0, "", 0, "Utils:", ""},
 		{PSCULPT_BRUSH_RESET, "RESET", 0, "Reset", "Clear/reset transforms"},
-		{PSCULPT_BRUSH_SELECT, "SELECT", 0, "Select", "Brush-select bones to mask affected area"}, // TODO: rename define
+		{PSCULPT_BRUSH_SELECT, "SELECT", 0, "Select", "Brush-select bones to mask affected area"},
 		{0, NULL, 0, NULL, NULL}};
 		
 	static EnumPropertyItem prop_direction_items[]= {
@@ -1179,7 +1179,6 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update"); // XXX: to change color
 	
 	/* which of x and z axes to include */
-	// XXX: review this property...
 	prop = RNA_def_property(srna, "xz_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "xzMode");
 	RNA_def_property_enum_items(prop, prop_xz_mode_items);
@@ -1228,7 +1227,6 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 	RNA_def_property_range(prop, 0.0, 1.0f);
 	RNA_def_property_ui_text(prop, "Volume Variation Smoothness", "Strength of volume stretching clamping");
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
-
 }
 
 void RNA_def_sculpt_paint(BlenderRNA *brna)
