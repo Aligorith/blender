@@ -447,7 +447,7 @@ static void set_pchan_eul_rotation(const float eul[3], bPoseChannel *pchan)
  *  - Main method adapted from the T_POSE case for ElementRotation() in transform.c
  *  - All transform/setup math adapted from bPoseChannel -> TransData stuff in transform_conversions.c
  */
-static void pchan_do_rotate(Object *ob, bPoseChannel *pchan, float mat[3][3])
+void pchan_do_rotate(Object *ob, bPoseChannel *pchan, float mat[3][3])
 {
 	float mtx[3][3], smtx[3][3], r_mtx[3][3], r_smtx[3][3], l_smtx[3][3];
 	//float center[3] = {0}, td_center[3] = {0};
