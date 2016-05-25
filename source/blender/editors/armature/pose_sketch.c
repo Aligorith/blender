@@ -414,6 +414,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			float old_vec[3], new_vec[3];
 			float old_len, new_len, sfac;
 			float dmat[3][3];
+			float loc_delta[3];
 			
 			/* Update endpoints and matrix of this bone */
 			if (rmode.rotate_pchan) {
@@ -424,6 +425,10 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			/* Compute old and new vectors for the bone direction */
 			sub_v3_v3v3(old_vec, pchan->pose_tail, pchan->pose_head);
 			sub_v3_v3v3(new_vec, p2->co, p1->co);
+			
+			/* Compute change in location */
+			//sub_v3_v3v3(loc_delta, p1->co, pchan->pose_head);
+			sub_v3_v3v3(loc_delta, p1->co, pchan->pose_mat[3]);
 			
 			/* Compute transform needed to rotate old to new,
 			 * as well as the scaling factor needed to stretch
@@ -516,10 +521,15 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			
 			/* Compute the new joints */
 			// XXX: unconnected bones should be able to be freely positioned!
-			if ((pchan->parent == NULL) || (pchan->bone->flag & BONE_CONNECTED) == 0) {
+			if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
 				/* head -> start of chain */
 				copy_v3_v3(pchan->pose_mat[3], p1->co);
 				copy_v3_v3(pchan->pose_head, p1->co);
+				
+				/* apply delta location */
+				if (rmode.rotate_pchan) {
+					add_v3_v3(pchan->loc, loc_delta);  // <=== this has errors, but seems more due to the recalc of the bone posemat stuff...
+				}
 			}
 			else if (pchan->parent) {
 				/* head -> parent's tip (as it would have been modified by previous) */
