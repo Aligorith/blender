@@ -508,8 +508,10 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				copy_v3_v3(pchan->pose_mat[3], p1->co);
 				copy_v3_v3(pchan->pose_head, p1->co);
 				
-				/* apply delta location */
-				add_v3_v3(pchan->loc, loc_delta);  // <=== this has errors, but seems more due to the recalc of the bone posemat stuff...
+				/* apply delta location, but only to first in chain (to prevent repeated application) */
+				if (i == 0) {
+					add_v3_v3(pchan->loc, loc_delta);  // <=== this has errors, but seems more due to the recalc of the bone posemat stuff...
+				}
 			}
 			else if (pchan->parent) {
 				/* head -> parent's tip (as it would have been modified by previous) */
