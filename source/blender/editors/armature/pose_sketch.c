@@ -386,23 +386,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	 */
 	spoints = psketch_stroke_to_points(ob, stroke, joint_dists, num_items + 1, reversed);
 	
-	
 	/* 5) Adjust each bone */
-#if 1 // XXX: Temporary stuff for testing which way of applying rotations works best
-	typedef struct PSketch_ApplyRotation_Mode {
-		char *name;
-		bool apply_posemat; // convert points to posemat
-		bool rotate_pchan;  // apply rotations by rotating the bone (like in transforms)
-		bool apply_m4;      // BKE_pchan_apply_mat4
-		bool apply_autoik;  // BKE_armature_mat_pose_to_bone - like for applying autoik
-		bool recalc_pchan;  // do where_is_bone() again...  (risks being wrong though)
-	} PSketch_ApplyRotation_Mode;
-	
-	//PSketch_ApplyRotation_Mode rmode = { "pose_only", true, false, false, false, false };  /* initial working test - cannot be keyframed */
-	//PSketch_ApplyRotation_Mode rmode = { "apply_mat_only", true, false, true, false, false }; /* just take the posemat and try to apply it */
-	PSketch_ApplyRotation_Mode rmode = { "rotate", true, true, false, false, true }; /* use method used for sculpt/direct transforms */
-	//PSketch_ApplyRotation_Mode rmode = { "apply_autoik", true, false, false, true, false }; /* use method used to apply autoik results */
-#endif
 	{
 		size_t i;
 		
@@ -416,21 +400,17 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			float dmat[3][3];
 			float loc_delta[3];
 			
-			//printf("i = %d, pchan = %s -----------\n", i, pchan->name);
-			
 			/* Update endpoints and matrix of this bone */
-			if (rmode.rotate_pchan) {
-				// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
-				BKE_pose_where_is_bone(scene, ob, pchan, BKE_scene_frame_get(scene), true);
-			}
-			
+			// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
+			BKE_pose_where_is_bone(scene, ob, pchan, BKE_scene_frame_get(scene), true);
+		
 			/* Compute old and new vectors for the bone direction */
 			sub_v3_v3v3(old_vec, pchan->pose_tail, pchan->pose_head);
 			sub_v3_v3v3(new_vec, p2->co, p1->co);
 			
 			/* Compute change in location */
-			//sub_v3_v3v3(loc_delta, p1->co, pchan->pose_head);
-			sub_v3_v3v3(loc_delta, p1->co, pchan->pose_mat[3]);
+			sub_v3_v3v3(loc_delta, p1->co, pchan->pose_head);
+			//sub_v3_v3v3(loc_delta, p1->co, pchan->pose_mat[3]);
 			
 			/* Compute transform needed to rotate old to new,
 			 * as well as the scaling factor needed to stretch
@@ -452,8 +432,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				printf("   r = %f %f %f\n", rot[0], rot[1], rot[2]);
 			}
 			
-			/* Apply the rotation */
-			if (rmode.apply_posemat) {
+			/* Apply the rotation to the posemat */
+			{
 				float tmat[3][3], rmat[3][3];
 				float scale[3];
 				
@@ -495,10 +475,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				copy_m4_m3(pchan->pose_mat, rmat);
 			}
 			
-			//printf("-->rotate\n");
-			
 			/* Apply actual values to be used later */
-			if (rmode.rotate_pchan) {
+			{
 				/* Just rotate the bone... */
 				// XXX: This needs to happen in worldspace, as that method assumes this was rotation originating from screenspace -> worldspace
 				float old_vec_world[3], new_vec_world[3];
@@ -523,8 +501,6 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				}
 			}
 			
-			//printf("--> new joints\n");
-			
 			/* Compute the new joints */
 			// XXX: unconnected bones should be able to be freely positioned!
 			if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
@@ -533,9 +509,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				copy_v3_v3(pchan->pose_head, p1->co);
 				
 				/* apply delta location */
-				if (rmode.rotate_pchan) {
-					add_v3_v3(pchan->loc, loc_delta);  // <=== this has errors, but seems more due to the recalc of the bone posemat stuff...
-				}
+				add_v3_v3(pchan->loc, loc_delta);  // <=== this has errors, but seems more due to the recalc of the bone posemat stuff...
 			}
 			else if (pchan->parent) {
 				/* head -> parent's tip (as it would have been modified by previous) */
@@ -558,79 +532,15 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				add_v3_v3v3(pchan->pose_tail, pchan->pose_head, vec);
 			}
 		}
-		
-		//printf("-->apply mats\n");
-		
-		/* Apply the data to the bones proper */
-		// FIXME: previous bones end up distorting the required pose for each bone!
-		if (rmode.apply_m4) {
-			for (i = 0; i < num_items; i++) {
-				bPoseChannel *pchan = chain[i];
-				BKE_pchan_apply_mat4(pchan, pchan->pose_mat, true);
-			}
-		}
-		else if (rmode.apply_autoik) {
-			/* see apply_targetless_ik() in transform_conversions.c */
-			for (i = 0; i < num_items; i++) {
-				bPoseChannel *pchan = chain[i];
-				float rmat[4][4];
-				
-				/* apply and decompose, doesn't work for constraints or non-uniform scale well */
-				{
-					float rmat3[3][3], qrmat[3][3], imat3[3][3], smat[3][3];
-					
-					copy_m3_m4(rmat3, rmat);
-					
-					/* rotation */
-					/* [#22409] is partially caused by this, as slight numeric error introduced during
-					 * the solving process leads to locked-axis values changing. However, we cannot modify
-					 * the values here, or else there are huge discrepancies between IK-solver (interactive)
-					 * and applied poses.
-					 */
-					if (pchan->rotmode > 0)
-						mat3_to_eulO(pchan->eul, pchan->rotmode, rmat3);
-					else if (pchan->rotmode == ROT_MODE_AXISANGLE)
-						mat3_to_axis_angle(pchan->rotAxis, &pchan->rotAngle, rmat3);
-					else
-						mat3_to_quat(pchan->quat, rmat3);
-					
-					/* for size, remove rotation */
-					/* causes problems with some constraints (so apply only if needed) */
-					if (use_stretch) {
-						if (pchan->rotmode > 0)
-							eulO_to_mat3(qrmat, pchan->eul, pchan->rotmode);
-						else if (pchan->rotmode == ROT_MODE_AXISANGLE)
-							axis_angle_to_mat3(qrmat, pchan->rotAxis, pchan->rotAngle);
-						else
-							quat_to_mat3(qrmat, pchan->quat);
-						
-						invert_m3_m3(imat3, qrmat);
-						mul_m3_m3m3(smat, rmat3, imat3);
-						mat3_to_size(pchan->size, smat);
-					}
-					
-					/* causes problems with some constraints (e.g. childof), so disable this */
-					/* as it is IK shouldn't affect location directly */
-					/* copy_v3_v3(pchan->loc, rmat[3]); */
-				}
-			}
-		}
 	}
-	
-	//printf("ready to free\n");
 	
 	/* free temp data */
 	MEM_freeN(chain);
 	MEM_freeN(joint_dists);
 	MEM_freeN(spoints);
 	
-	//printf("do refresh\n");
-	
 	/* updates */
 	poseAnim_mapping_refresh(C, scene, ob);
-	//WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
-	
-	printf("done\n");
 	
 	return OPERATOR_FINISHED;
 }
