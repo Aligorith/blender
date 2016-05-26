@@ -416,6 +416,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			float dmat[3][3];
 			float loc_delta[3];
 			
+			//printf("i = %d, pchan = %s -----------\n", i, pchan->name);
+			
 			/* Update endpoints and matrix of this bone */
 			if (rmode.rotate_pchan) {
 				// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
@@ -493,6 +495,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				copy_m4_m3(pchan->pose_mat, rmat);
 			}
 			
+			//printf("-->rotate\n");
+			
 			/* Apply actual values to be used later */
 			if (rmode.rotate_pchan) {
 				/* Just rotate the bone... */
@@ -518,6 +522,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 					mul_v3_fl(pchan->size, sfac);
 				}
 			}
+			
+			//printf("--> new joints\n");
 			
 			/* Compute the new joints */
 			// XXX: unconnected bones should be able to be freely positioned!
@@ -552,6 +558,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				add_v3_v3v3(pchan->pose_tail, pchan->pose_head, vec);
 			}
 		}
+		
+		//printf("-->apply mats\n");
 		
 		/* Apply the data to the bones proper */
 		// FIXME: previous bones end up distorting the required pose for each bone!
@@ -609,14 +617,20 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 		}
 	}
 	
+	//printf("ready to free\n");
+	
 	/* free temp data */
 	MEM_freeN(chain);
 	MEM_freeN(joint_dists);
 	MEM_freeN(spoints);
 	
+	//printf("do refresh\n");
+	
 	/* updates */
 	poseAnim_mapping_refresh(C, scene, ob);
-	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+	//WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
+	
+	printf("done\n");
 	
 	return OPERATOR_FINISHED;
 }
