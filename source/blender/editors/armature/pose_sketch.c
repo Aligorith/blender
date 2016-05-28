@@ -294,10 +294,16 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 		num_items, chain_len, 
 		(first_bone) ? first_bone->name : "<None>",
 		(last_bone) ? last_bone->name : "<None>");
+	
+	if (ELEM(NULL, first_bone, last_bone)) {
+		BKE_report(op->reports, RPT_ERROR, "Could not find first and last bone");
+		return OPERATOR_CANCELLED;
+	}
 		
 	/* 2) Find which end of the chain is closer to the start of the stroke.
 	 *    This joint will be mapped to the first point in the stroke, etc.
 	 */
+	// XXX: Make this optional?
 	{
 		bGPDspoint *sp = stroke->points;
 		bGPDspoint *ep = sp + (stroke->totpoints - 1);
@@ -396,6 +402,10 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			float old_len, new_len, sfac;
 			float dmat[3][3];
 			
+			/* sanity check */
+			if (pchan == NULL)
+				continue;
+			
 			/* Update endpoints and matrix of this bone */
 			// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
 			BKE_pose_where_is_bone(scene, ob, pchan, BKE_scene_frame_get(scene), true);
@@ -464,7 +474,10 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				}
 				
 				/* Copy new transforms back to the bone */
+				/* WARNING: The locations get cleared, so we must put them back later... */
+				print_m4("   before: ", pchan->pose_mat);
 				copy_m4_m3(pchan->pose_mat, rmat);
+				print_m4("   after: ", pchan->pose_mat);
 			}
 			
 			/* Apply actual values to be used later */
