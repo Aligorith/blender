@@ -377,10 +377,13 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				chain[i] = pchan;
 				
 				/* Increment for next step */
+				prev_pchan = pchan;
 				i++;
 			}
 		}
 		CTX_DATA_END;
+		
+		printf("last i = %d, num_items = %d\n", i, num_items);
 	}
 	
 	/* 4) Create a simplified version of the stroke
