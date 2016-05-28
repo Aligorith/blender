@@ -212,6 +212,10 @@ void POSE_OT_propagate(struct wmOperatorType *ot);
 /* ******************************************************* */
 /* Pose Sketching/Sculpting Tools */
 
+// XXX: fixme - currently in pose_sculpt.c, but it may be better in another file?
+void pchan_do_rotate(struct Object *ob, struct bPoseChannel *pchan, float mat[3][3]);
+
+
 /* pose_sketch.c */
 void POSE_OT_sketch_direct(struct wmOperatorType *ot);
 

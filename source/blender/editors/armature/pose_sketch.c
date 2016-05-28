@@ -214,9 +214,6 @@ static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stro
 	return result;
 }
 
-// XXX: fixme - currently in pose_sculpt.c
-extern void pchan_do_rotate(Object *ob, bPoseChannel *pchan, float mat[3][3]);
-
 /* Adaptation of "Direct Mode" technique from Oztireli et al. (2013) */
 static int psketch_direct_exec(bContext *C, wmOperator *op)
 {
