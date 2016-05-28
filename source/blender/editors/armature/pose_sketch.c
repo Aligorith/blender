@@ -180,7 +180,7 @@ static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stro
 			j = stroke->totpoints - 1;
 			sp = &stroke->points[j];
 		}
-
+		
 		dist_prev = distances[j - 1];
 		prev = sp - 1;
 		
@@ -212,6 +212,159 @@ static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stro
 	/* Free temp data and return the stroke points array */
 	MEM_freeN(distances);
 	return result;
+}
+
+/* Apply new pose to the given bone, knowing only its new endpoints */
+static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
+                                               bPoseChannel *pchan, const size_t chain_idx,
+                                               const float new_head[3], const float new_tail[3],
+                                               const bool use_offset, const bool use_stretch,
+                                               const float cfra)
+{
+	float old_vec[3], new_vec[3];
+	float old_len, new_len, sfac;
+	float dmat[3][3];
+	
+	/* sanity check */
+	if (pchan == NULL)
+		return;
+	
+	/* Update endpoints and matrix of this bone */
+	// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
+	BKE_pose_where_is_bone(scene, ob, pchan, cfra, true);
+
+	/* Compute old and new vectors for the bone direction */
+	sub_v3_v3v3(old_vec, pchan->pose_tail, pchan->pose_head);
+	sub_v3_v3v3(new_vec, new_tail, new_head);
+	
+	/* Compute transform needed to rotate old to new,
+	 * as well as the scaling factor needed to stretch
+	 * the old bone to match the new one
+	 */
+	old_len = normalize_v3(old_vec);
+	new_len = normalize_v3(new_vec);
+	sfac    = new_len / old_len;
+	
+	rotation_between_vecs_to_mat3(dmat, old_vec, new_vec);
+	
+	printf("%s: old vec = %f %f %f,  new vec = %f %f %f\n",
+			pchan->name,
+			old_vec[0], old_vec[1], old_vec[2],
+			new_vec[0], new_vec[1], new_vec[2]);
+	{
+		float rot[3];
+		mat3_to_eul(rot, dmat);
+		printf("   r = %f %f %f\n", rot[0], rot[1], rot[2]);
+	}
+	
+	/* Apply the rotation to the posemat */
+	{
+		float tmat[3][3], rmat[3][3];
+		float scale[3];
+		
+		/* Separate out the scaling and rotation components,
+		 * so that we can operate on the rotation component
+		 * separately without skewing the matrix
+		 */
+		copy_m3_m4(tmat, pchan->pose_mat);
+		
+		scale[0] = normalize_v3(tmat[0]);
+		scale[1] = normalize_v3(tmat[1]);
+		scale[2] = normalize_v3(tmat[2]);
+		
+		/* Apply extra rotation to rotate the bone */
+		mul_m3_m3m3(rmat, dmat, tmat);
+		
+		/* Reapply scaling */
+		if (use_stretch) {
+			/* Apply the scaling factor to all axes,
+			 * not just on the y-axis needed to make
+			 * things fit.
+			 *
+			 * TODO: XZ scaling modes could be introduced
+			 * here as an alternative.
+			 */
+			mul_v3_fl(rmat[0], scale[0] * sfac);
+			mul_v3_fl(rmat[1], scale[1] * sfac);
+			mul_v3_fl(rmat[2], scale[2] * sfac);
+			
+		}
+		else {
+			/* Just reapply scaling normally */
+			mul_v3_fl(rmat[0], scale[0]);
+			mul_v3_fl(rmat[1], scale[1]);
+			mul_v3_fl(rmat[2], scale[2]);
+		}
+		
+		/* Copy new transforms back to the bone */
+		/* WARNING: The locations get cleared, so we must put them back later... */
+		//print_m4("   before: ", pchan->pose_mat);
+		copy_m4_m3(pchan->pose_mat, rmat);
+		//print_m4("   after: ", pchan->pose_mat);
+	}
+	
+	/* Apply actual values to be used later */
+	{
+		/* Just rotate the bone... */
+		// XXX: This needs to happen in worldspace, as that method assumes this was rotation originating from screenspace -> worldspace
+		float old_vec_world[3], new_vec_world[3];
+		float rmat[3][3];
+		short locks = pchan->protectflag;
+		
+		mul_v3_m4v3(old_vec_world, ob->obmat, old_vec);
+		mul_v3_m4v3(new_vec_world, ob->obmat, new_vec);
+		
+		rotation_between_vecs_to_mat3(rmat, old_vec_world, new_vec_world);
+		
+		pchan->protectflag |= (OB_LOCK_LOCX | OB_LOCK_LOCY | OB_LOCK_LOCZ);  /* rotation is relative to bone head, not pose origin... */
+		pchan_do_rotate(ob, pchan, rmat);
+		pchan->protectflag = locks;
+		
+		/* Apply scale factor to all axes of bone... */
+		if (use_stretch) {
+			/* Apply the scaling factor to all axes,
+			 * not just on the y-axis needed to make
+			 * things fit.
+			 *
+			 * TODO: XZ scaling modes could be introduced
+			 * here as an alternative.
+			 */
+			mul_v3_fl(pchan->size, sfac);
+		}
+	}
+	
+	/* Compute the new joints */
+	// XXX: unconnected bones should be able to be freely positioned!
+	if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
+		/* snap this bone to the chain, but do this for first in chain (to prevent repeated application) */
+		if (use_offset && (chain_idx == 0)) {
+			BKE_armature_loc_pose_to_bone(pchan, new_head, pchan->loc);
+		}
+		
+		/* head -> start of chain */
+		copy_v3_v3(pchan->pose_mat[3], new_head);
+		copy_v3_v3(pchan->pose_head, new_head);
+	}
+	else if (pchan->parent) {
+		/* head -> parent's tip (as it would have been modified by previous) */
+		copy_v3_v3(pchan->pose_mat[3], pchan->parent->pose_tail);
+		copy_v3_v3(pchan->pose_head, pchan->parent->pose_tail);
+	}
+	
+	if (use_stretch) {
+		/* Scaled Tail - Reapply stretched length to new-vector, and add that to the bone's current position */
+		float vec[3];
+		
+		mul_v3_v3fl(vec, new_vec, new_len);
+		add_v3_v3v3(pchan->pose_tail, pchan->pose_head, vec);
+	}
+	else {
+		/* Direction-Only Tail - Use new rotation but old length */
+		float vec[3];
+		
+		mul_v3_v3fl(vec, new_vec, old_len);
+		add_v3_v3v3(pchan->pose_tail, pchan->pose_head, vec);
+	}
 }
 
 /* Adaptation of "Direct Mode" technique from Oztireli et al. (2013) */
@@ -391,160 +544,20 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	 */
 	spoints = psketch_stroke_to_points(ob, stroke, joint_dists, num_items + 1, reversed);
 	
-	/* 5) Adjust each bone */
-	{
-		size_t i;
+	/* 5) Adjust each bone
+	 *    - Determine what the new pose of each bone should be, knowing only the new
+	 *      endpoints for the bone, as determined in previous steps
+	 */
+	for (size_t i = 0; i < num_items; i++) {
+		bPoseChannel *pchan = chain[i];
+		tGPStrokePosePoint *p1 = &spoints[i];
+		tGPStrokePosePoint *p2 = &spoints[i + 1];
 		
-		for (i = 0; i < num_items; i++) {
-			bPoseChannel *pchan = chain[i];
-			tGPStrokePosePoint *p1 = &spoints[i];
-			tGPStrokePosePoint *p2 = &spoints[i + 1];
-			
-			float old_vec[3], new_vec[3];
-			float old_len, new_len, sfac;
-			float dmat[3][3];
-			
-			/* sanity check */
-			if (pchan == NULL)
-				continue;
-			
-			/* Update endpoints and matrix of this bone */
-			// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
-			BKE_pose_where_is_bone(scene, ob, pchan, cfra, true);
-		
-			/* Compute old and new vectors for the bone direction */
-			sub_v3_v3v3(old_vec, pchan->pose_tail, pchan->pose_head);
-			sub_v3_v3v3(new_vec, p2->co, p1->co);
-			
-			/* Compute transform needed to rotate old to new,
-			 * as well as the scaling factor needed to stretch
-			 * the old bone to match the new one
-			 */
-			old_len = normalize_v3(old_vec);
-			new_len = normalize_v3(new_vec);
-			sfac    = new_len / old_len;
-			
-			rotation_between_vecs_to_mat3(dmat, old_vec, new_vec);
-			
-			printf("%s: old vec = %f %f %f,  new vec = %f %f %f\n",
-					pchan->name,
-					old_vec[0], old_vec[1], old_vec[2],
-					new_vec[0], new_vec[1], new_vec[2]);
-			{
-				float rot[3];
-				mat3_to_eul(rot, dmat);
-				printf("   r = %f %f %f\n", rot[0], rot[1], rot[2]);
-			}
-			
-			/* Apply the rotation to the posemat */
-			{
-				float tmat[3][3], rmat[3][3];
-				float scale[3];
-				
-				/* Separate out the scaling and rotation components,
-				 * so that we can operate on the rotation component
-				 * separately without skewing the matrix
-				 */
-				copy_m3_m4(tmat, pchan->pose_mat);
-				
-				scale[0] = normalize_v3(tmat[0]);
-				scale[1] = normalize_v3(tmat[1]);
-				scale[2] = normalize_v3(tmat[2]);
-				
-				/* Apply extra rotation to rotate the bone */
-				mul_m3_m3m3(rmat, dmat, tmat);
-				
-				/* Reapply scaling */
-				if (use_stretch) {
-					/* Apply the scaling factor to all axes,
-					 * not just on the y-axis needed to make
-					 * things fit.
-					 *
-					 * TODO: XZ scaling modes could be introduced
-					 * here as an alternative.
-					 */
-					mul_v3_fl(rmat[0], scale[0] * sfac);
-					mul_v3_fl(rmat[1], scale[1] * sfac);
-					mul_v3_fl(rmat[2], scale[2] * sfac);
-					
-				}
-				else {
-					/* Just reapply scaling normally */
-					mul_v3_fl(rmat[0], scale[0]);
-					mul_v3_fl(rmat[1], scale[1]);
-					mul_v3_fl(rmat[2], scale[2]);
-				}
-				
-				/* Copy new transforms back to the bone */
-				/* WARNING: The locations get cleared, so we must put them back later... */
-				//print_m4("   before: ", pchan->pose_mat);
-				copy_m4_m3(pchan->pose_mat, rmat);
-				//print_m4("   after: ", pchan->pose_mat);
-			}
-			
-			/* Apply actual values to be used later */
-			{
-				/* Just rotate the bone... */
-				// XXX: This needs to happen in worldspace, as that method assumes this was rotation originating from screenspace -> worldspace
-				float old_vec_world[3], new_vec_world[3];
-				float rmat[3][3];
-				short locks = pchan->protectflag;
-				
-				mul_v3_m4v3(old_vec_world, ob->obmat, old_vec);
-				mul_v3_m4v3(new_vec_world, ob->obmat, new_vec);
-				
-				rotation_between_vecs_to_mat3(rmat, old_vec_world, new_vec_world);
-				
-				pchan->protectflag |= (OB_LOCK_LOCX | OB_LOCK_LOCY | OB_LOCK_LOCZ);  /* rotation is relative to bone head, not pose origin... */
-				pchan_do_rotate(ob, pchan, rmat);
-				pchan->protectflag = locks;
-				
-				/* Apply scale factor to all axes of bone... */
-				if (use_stretch) {
-					/* Apply the scaling factor to all axes,
-					 * not just on the y-axis needed to make
-					 * things fit.
-					 *
-					 * TODO: XZ scaling modes could be introduced
-					 * here as an alternative.
-					 */
-					mul_v3_fl(pchan->size, sfac);
-				}
-			}
-			
-			/* Compute the new joints */
-			// XXX: unconnected bones should be able to be freely positioned!
-			if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
-				/* snap this bone to the chain, but do this for first in chain (to prevent repeated application) */
-				if (use_offset && (i == 0)) {
-					BKE_armature_loc_pose_to_bone(pchan, p1->co, pchan->loc);
-				}
-				
-				/* head -> start of chain */
-				copy_v3_v3(pchan->pose_mat[3], p1->co);
-				copy_v3_v3(pchan->pose_head, p1->co);
-			}
-			else if (pchan->parent) {
-				/* head -> parent's tip (as it would have been modified by previous) */
-				copy_v3_v3(pchan->pose_mat[3], pchan->parent->pose_tail);
-				copy_v3_v3(pchan->pose_head, pchan->parent->pose_tail);
-			}
-			
-			if (use_stretch) {
-				/* Scaled Tail - Reapply stretched length to new-vector, and add that to the bone's current position */
-				float vec[3];
-				
-				mul_v3_v3fl(vec, new_vec, new_len);
-				add_v3_v3v3(pchan->pose_tail, pchan->pose_head, vec);
-			}
-			else {
-				/* Direction-Only Tail - Use new rotation but old length */
-				float vec[3];
-				
-				mul_v3_v3fl(vec, new_vec, old_len);
-				add_v3_v3v3(pchan->pose_tail, pchan->pose_head, vec);
-			}
-		}
+		psketch_pchan_apply_from_endpoints(scene, ob,
+		                                   pchan, i,
+		                                   p1->co, p2->co,
+		                                   use_offset, use_stretch,
+                                           cfra);
 	}
 	
 	/* free temp data */
