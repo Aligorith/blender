@@ -93,6 +93,7 @@ static bool psketch_direct_bone_can_include(bPoseChannel *pchan, bPoseChannel *p
 	return ((prev_pchan == NULL) || (pchan->parent == prev_pchan));
 }
 
+/* ---------------------------------------------------------------- */
 
 /* Simplified GPencil stroke point, ready for pose matching */
 typedef struct tGPStrokePosePoint {
@@ -100,14 +101,108 @@ typedef struct tGPStrokePosePoint {
 	int index;		/* original index of this point in the stroke */
 } tGPStrokePosePoint;
 
+
+/* Helper for Step 2
+ * Check if stroke needs to be interpreted in reverse order
+ */
+static bool psketch_stroke_needs_reversing(const bGPDstroke *stroke,
+                                           Object *ob,
+                                           const bPoseChannel *first_bone, 
+                                           const bPoseChannel *last_bone)
+{
+	bGPDspoint *sp = stroke->points;
+	bGPDspoint *ep = sp + (stroke->totpoints - 1);
+	float head[3], tail[3];
+	float hdist, tdist;
+	float hdist2, tdist2;
+	bool reversed = false;
+	
+	/* convert pose-space coordinates to global space to be in same space as the GPencil strokes */
+	mul_v3_m4v3(head, ob->obmat, first_bone->pose_head);
+	mul_v3_m4v3(tail, ob->obmat, last_bone->pose_tail);
+	
+	/* which one is closer? */
+	hdist = len_v3v3(&sp->x, head);
+	tdist = len_v3v3(&sp->x, tail);
+	
+	hdist2 = len_v3v3(&ep->x, head);
+	tdist2 = len_v3v3(&ep->x, tail);
+	
+	printf("sp = %p, ep = %p, count = %d\n", sp, ep, stroke->totpoints);
+	
+	/* We assume here that there should be a bias towards users drawing strokes in the
+	 * direction that the bones flow. Therefore, only reverse the direction if strictly
+	 * necessary...
+	 */
+	if (tdist < hdist) {
+		/* Special Case: Watch out for C-shaped chains/curves
+		 * We shouldn't reverse if the stroke ends closer to
+		 * the endpoint, even if the tail is closer to the start
+		 * of the stroke. This should prevent reversal when the
+		 * head gets close to the tail, but the stroke also ends
+		 * near the tail.
+		 */
+		if (hdist2 < tdist2) {
+			printf("reversed - %f %f | %f %f\n", hdist, tdist, hdist2, tdist2);
+			reversed = true;
+		}
+		else {
+			printf("not reversed (c) - %f %f | %f %f\n", hdist, tdist, hdist2, tdist2);
+			reversed = true;
+		}
+	}
+	else {
+		printf("not reversed - %f %f | %f %f\n", hdist, tdist, hdist2, tdist2);
+		reversed = false;
+	}
+	
+	return reversed;
+}
+
+/* Helper for Step 3
+ * Build up maps of where each bone is along the chain
+ */
+static void psketch_direct_build_chain_maps(const bContext *C, const size_t num_items, const float chain_len,
+                                            bPoseChannel **r_chain, float *r_joint_dists)
+{
+	bPoseChannel *prev_pchan = NULL;
+	float len = 0.0f;
+	size_t i = 0;
+	
+	CTX_DATA_BEGIN(C, bPoseChannel *, pchan, selected_pose_bones)
+	{
+		if (psketch_direct_bone_can_include(pchan, prev_pchan)) {
+			BLI_assert(i < num_items);
+			
+			/* If this is the first bone, initialise first joint's distance */
+			if (i == 0) {
+				r_joint_dists[0] = 0.0f;
+			}
+			
+			/* Set this joint's distance */
+			len += len_v3v3(pchan->pose_head, pchan->pose_tail);
+			r_joint_dists[i + 1] = len / chain_len;
+			
+			/* Store this bone */
+			r_chain[i] = pchan;
+			
+			/* Increment for next step */
+			prev_pchan = pchan;
+			i++;
+		}
+	}
+	CTX_DATA_END;
+}
+
+
 /* Figure out where each joint should fit along the stroke 
  *
  * The algorithm used here is roughly based on the technique
  * used in anim.c : calc_curvepath()
  */
 static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stroke, 
-                                                    float *joint_dists, size_t num_joints, 
-                                                    bool reversed)
+                                                    const float *joint_dists, const size_t num_joints, 
+                                                    const bool reversed)
 {
 	tGPStrokePosePoint *result = MEM_callocN(sizeof(tGPStrokePosePoint) * num_joints, "tGPStrokePosePoints");
 	tGPStrokePosePoint *pt;
@@ -214,6 +309,9 @@ static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stro
 	return result;
 }
 
+
+/* ---------------------------------------------------------------- */
+
 /* Apply new pose to the given bone, knowing only its new endpoints */
 static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
                                                bPoseChannel *pchan, const size_t chain_idx,
@@ -233,9 +331,11 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 	// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
 	BKE_pose_where_is_bone(scene, ob, pchan, cfra, true);
 
+	
 	/* Compute old and new vectors for the bone direction */
 	sub_v3_v3v3(old_vec, pchan->pose_tail, pchan->pose_head);
 	sub_v3_v3v3(new_vec, new_tail, new_head);
+	
 	
 	/* Compute transform needed to rotate old to new,
 	 * as well as the scaling factor needed to stretch
@@ -247,15 +347,11 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 	
 	rotation_between_vecs_to_mat3(dmat, old_vec, new_vec);
 	
+	
 	printf("%s: old vec = %f %f %f,  new vec = %f %f %f\n",
 			pchan->name,
 			old_vec[0], old_vec[1], old_vec[2],
 			new_vec[0], new_vec[1], new_vec[2]);
-	{
-		float rot[3];
-		mat3_to_eul(rot, dmat);
-		printf("   r = %f %f %f\n", rot[0], rot[1], rot[2]);
-	}
 	
 	/* Apply the rotation to the posemat */
 	{
@@ -298,9 +394,7 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 		
 		/* Copy new transforms back to the bone */
 		/* WARNING: The locations get cleared, so we must put them back later... */
-		//print_m4("   before: ", pchan->pose_mat);
 		copy_m4_m3(pchan->pose_mat, rmat);
-		//print_m4("   after: ", pchan->pose_mat);
 	}
 	
 	/* Apply actual values to be used later */
@@ -309,16 +403,12 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 		// XXX: This needs to happen in worldspace, as that method assumes this was rotation originating from screenspace -> worldspace
 		float old_vec_world[3], new_vec_world[3];
 		float rmat[3][3];
-		short locks = pchan->protectflag;
 		
 		mul_v3_m4v3(old_vec_world, ob->obmat, old_vec);
 		mul_v3_m4v3(new_vec_world, ob->obmat, new_vec);
 		
 		rotation_between_vecs_to_mat3(rmat, old_vec_world, new_vec_world);
-		
-		pchan->protectflag |= (OB_LOCK_LOCX | OB_LOCK_LOCY | OB_LOCK_LOCZ);  /* rotation is relative to bone head, not pose origin... */
 		pchan_do_rotate(ob, pchan, rmat);
-		pchan->protectflag = locks;
 		
 		/* Apply scale factor to all axes of bone... */
 		if (use_stretch) {
@@ -334,7 +424,7 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 	}
 	
 	/* Compute the new joints */
-	// XXX: unconnected bones should be able to be freely positioned!
+	/* -> Head */
 	if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
 		/* snap this bone to the chain, but do this for first in chain (to prevent repeated application) */
 		if (use_offset && (chain_idx == 0)) {
@@ -351,6 +441,7 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 		copy_v3_v3(pchan->pose_head, pchan->parent->pose_tail);
 	}
 	
+	/* -> Tail */
 	if (use_stretch) {
 		/* Scaled Tail - Reapply stretched length to new-vector, and add that to the bone's current position */
 		float vec[3];
@@ -366,6 +457,8 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 		add_v3_v3v3(pchan->pose_tail, pchan->pose_head, vec);
 	}
 }
+
+/* ---------------------------------------------------------------- */
 
 /* Adaptation of "Direct Mode" technique from Oztireli et al. (2013) */
 static int psketch_direct_exec(bContext *C, wmOperator *op)
@@ -395,13 +488,16 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	
 	
 	/* Abort if we don't have a reference stroke */
-	// XXX: assume that the stroke is in 3D space
 	if (stroke == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "No Grease Pencil stroke to use for posing the selected chain of bones");
 		return OPERATOR_CANCELLED;
 	}
 	else if (stroke->totpoints == 1) {
-		BKE_report(op->reports, RPT_ERROR, "Stroke is unusable (i.e. it is juts a dot)");
+		BKE_report(op->reports, RPT_ERROR, "Stroke is unusable (i.e. it is just a dot)");
+		return OPERATOR_CANCELLED;
+	}
+	else if ((stroke->flag & GP_STROKE_3DSPACE) == 0) {
+		BKE_report(op->reports, RPT_ERROR, "Stroke is unusable - it must be in 3D space (e.g. use 'Cursor' or 'Depth' alignment modes)");
 		return OPERATOR_CANCELLED;
 	}
 	
@@ -438,10 +534,9 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	}
 	
 	if (IS_EQ(chain_len, 0.0f)) {
-		BKE_report(op->reports, RPT_ERROR, "Zero length bone chain");
+		BKE_report(op->reports, RPT_ERROR, "Zero length bone chain!");
 		return OPERATOR_CANCELLED;
 	}
-	
 	
 	// XXX: debug
 	printf(
@@ -454,95 +549,29 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 		BKE_report(op->reports, RPT_ERROR, "Could not find first and last bone");
 		return OPERATOR_CANCELLED;
 	}
-		
+	
+	
 	/* 2) Find which end of the chain is closer to the start of the stroke.
 	 *    This joint will be mapped to the first point in the stroke, etc.
 	 */
 	if (RNA_boolean_get(op->ptr, "use_closest_end_first")) {
-		bGPDspoint *sp = stroke->points;
-		bGPDspoint *ep = sp + (stroke->totpoints - 1);
-		float head[3], tail[3];
-		float hdist, tdist;
-		float hdist2, tdist2;
-		
-		/* convert pose-space coordinates to global space to be in same space as the GPencil strokes */
-		mul_v3_m4v3(head, ob->obmat, first_bone->pose_head);
-		mul_v3_m4v3(tail, ob->obmat, last_bone->pose_tail);
-		
-		/* which one is closer? */
-		hdist = len_v3v3(&sp->x, head);
-		tdist = len_v3v3(&sp->x, tail);
-		
-		hdist2 = len_v3v3(&ep->x, head);
-		tdist2 = len_v3v3(&ep->x, tail);
-		
-		printf("sp = %p, ep = %p, count = %d\n", sp, ep, stroke->totpoints);
-		
-		/* We assume here that there should be a bias towards users drawing strokes in the
-		 * direction that the bones flow. Therefore, only reverse the direction if strictly
-		 * necessary...
-		 */
-		if (tdist < hdist) {
-			/* Special Case: Watch out for C-shaped chains/curves
-			 * We shouldn't reverse if the stroke ends closer to
-			 * the endpoint, even if the tail is closer to the start
-			 * of the stroke. This should prevent reversal when the
-			 * head gets close to the tail, but the stroke also ends
-			 * near the tail.
-			 */
-			if (hdist2 < tdist2) {
-				printf("reversed - %f %f | %f %f\n", hdist, tdist, hdist2, tdist2);
-				reversed = true;
-			}
-			else {
-				printf("not reversed (c) - %f %f | %f %f\n", hdist, tdist, hdist2, tdist2);
-				reversed = true;
-			}
-		}
-		else {
-			printf("not reversed - %f %f | %f %f\n", hdist, tdist, hdist2, tdist2);
-			reversed = false;
-		}
+		reversed = psketch_stroke_needs_reversing(stroke, ob, first_bone, last_bone);
 	}
+	
 	
 	/* 3) Compute the relative positions of the joints, as well as the sequence of bones */
 	chain = MEM_callocN(sizeof(bPoseChannel *) * num_items, "psketch bone chain");
 	joint_dists = MEM_callocN(sizeof(float) * (num_items + 1), "psketch joints");
 	
-	{
-		float len = 0.0f;
-		size_t i = 0;
-		
-		prev_pchan = NULL;
-		
-		CTX_DATA_BEGIN(C, bPoseChannel *, pchan, selected_pose_bones)
-		{
-			if (psketch_direct_bone_can_include(pchan, prev_pchan)) {
-				/* If this is the first bone, initialise first joint's distance */
-				if (i == 0) {
-					joint_dists[0] = 0.0f;
-				}
-				
-				/* Set this joint's distance */
-				len += len_v3v3(pchan->pose_head, pchan->pose_tail);
-				joint_dists[i + 1] = len / chain_len;
-				
-				/* Store this bone */
-				chain[i] = pchan;
-				
-				/* Increment for next step */
-				prev_pchan = pchan;
-				i++;
-			}
-		}
-		CTX_DATA_END;
-	}
+	psketch_direct_build_chain_maps(C, num_items, chain_len, chain, joint_dists);
+	
 	
 	/* 4) Create a simplified version of the stroke
 	 *    - Sampled down to have 1 pt per joint
 	 *    - Coordinates in the pose space (not global)
 	 */
 	spoints = psketch_stroke_to_points(ob, stroke, joint_dists, num_items + 1, reversed);
+	
 	
 	/* 5) Adjust each bone
 	 *    - Determine what the new pose of each bone should be, knowing only the new
@@ -560,15 +589,16 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
                                            cfra);
 	}
 	
-	/* free temp data */
+	
+	/* Free temp data */
 	MEM_freeN(chain);
 	MEM_freeN(joint_dists);
 	MEM_freeN(spoints);
 	
-	/* updates */
+	/* Updates */
 	poseAnim_mapping_refresh(C, scene, ob);
 	
-	/* remove temp data? */
+	/* Remove temp stroke data? */
 	if (RNA_boolean_get(op->ptr, "keep_stroke") == false) {
 		// XXX: instead of deleting the last one, maybe delete the previous ones that got drawn?
 		gpencil_frame_delete_laststroke(gpl, gpf);
