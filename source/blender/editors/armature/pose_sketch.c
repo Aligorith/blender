@@ -557,6 +557,9 @@ void POSE_OT_sketch_direct(wmOperatorType *ot)
 	ot->exec = psketch_direct_exec;
 	ot->poll = ED_operator_posemode;
 	
+	/* flags */
+	ot->flag = OPTYPE_UNDO; // XXX: needed so that changing the parameters will attempt to reapply
+	
 	/* properties */
 	RNA_def_boolean(ot->srna, "use_stretch", false, "Stretch to Fit", "Stretch bones to match the stroke exactly");
 }
