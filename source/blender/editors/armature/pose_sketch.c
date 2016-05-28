@@ -398,7 +398,6 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			float old_vec[3], new_vec[3];
 			float old_len, new_len, sfac;
 			float dmat[3][3];
-			float loc_delta[3];
 			
 			/* Update endpoints and matrix of this bone */
 			// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
@@ -407,10 +406,6 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			/* Compute old and new vectors for the bone direction */
 			sub_v3_v3v3(old_vec, pchan->pose_tail, pchan->pose_head);
 			sub_v3_v3v3(new_vec, p2->co, p1->co);
-			
-			/* Compute change in location */
-			sub_v3_v3v3(loc_delta, p1->co, pchan->pose_head);
-			//sub_v3_v3v3(loc_delta, p1->co, pchan->pose_mat[3]);
 			
 			/* Compute transform needed to rotate old to new,
 			 * as well as the scaling factor needed to stretch
@@ -481,12 +476,16 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				// XXX: This needs to happen in worldspace, as that method assumes this was rotation originating from screenspace -> worldspace
 				float old_vec_world[3], new_vec_world[3];
 				float rmat[3][3];
+				short locks = pchan->protectflag;
 				
 				mul_v3_m4v3(old_vec_world, ob->obmat, old_vec);
 				mul_v3_m4v3(new_vec_world, ob->obmat, new_vec);
 				
 				rotation_between_vecs_to_mat3(rmat, old_vec_world, new_vec_world);
+				
+				pchan->protectflag |= (OB_LOCK_LOCX | OB_LOCK_LOCY | OB_LOCK_LOCZ);  /* rotation is relative to bone head, not pose origin... */
 				pchan_do_rotate(ob, pchan, rmat);
+				pchan->protectflag = locks;
 				
 				/* Apply scale factor to all axes of bone... */
 				if (use_stretch) {
@@ -504,14 +503,14 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			/* Compute the new joints */
 			// XXX: unconnected bones should be able to be freely positioned!
 			if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
+				/* snap this bone to the chain, but do this for first in chain (to prevent repeated application) */
+				if (i == 0) {
+					BKE_armature_loc_pose_to_bone(pchan, p1->co, pchan->loc);
+				}
+				
 				/* head -> start of chain */
 				copy_v3_v3(pchan->pose_mat[3], p1->co);
 				copy_v3_v3(pchan->pose_head, p1->co);
-				
-				/* apply delta location, but only to first in chain (to prevent repeated application) */
-				if (i == 0) {
-					add_v3_v3(pchan->loc, loc_delta);  // <=== this has errors, but seems more due to the recalc of the bone posemat stuff...
-				}
 			}
 			else if (pchan->parent) {
 				/* head -> parent's tip (as it would have been modified by previous) */
