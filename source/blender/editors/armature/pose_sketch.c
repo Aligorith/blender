@@ -219,6 +219,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
+	const float cfra = BKE_scene_frame_get(scene);
 	
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	bGPDlayer *gpl = gpencil_layer_getactive(gpd); // XXX: this assumes that any layer will do, as long as user drew in it recently
@@ -236,7 +237,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	bool reversed = NULL;
 	
 	tGPStrokePosePoint *spoints = NULL;
-	bool use_stretch = RNA_boolean_get(op->ptr, "use_stretch");
+	const bool use_stretch = RNA_boolean_get(op->ptr, "use_stretch");
+	const bool use_offset  = RNA_boolean_get(op->ptr, "use_offset");
 	
 	
 	/* Abort if we don't have a reference stroke */
@@ -303,8 +305,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	/* 2) Find which end of the chain is closer to the start of the stroke.
 	 *    This joint will be mapped to the first point in the stroke, etc.
 	 */
-	// XXX: Make this optional?
-	{
+	if (RNA_boolean_get(op->ptr, "use_closest_end_first")) {
 		bGPDspoint *sp = stroke->points;
 		bGPDspoint *ep = sp + (stroke->totpoints - 1);
 		float head[3], tail[3];
@@ -382,8 +383,6 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			}
 		}
 		CTX_DATA_END;
-		
-		printf("last i = %d, num_items = %d\n", i, num_items);
 	}
 	
 	/* 4) Create a simplified version of the stroke
@@ -411,7 +410,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			
 			/* Update endpoints and matrix of this bone */
 			// XXX: this won't match 100%, especially when more complicated rigs requiring the new depsgraph are involved...
-			BKE_pose_where_is_bone(scene, ob, pchan, BKE_scene_frame_get(scene), true);
+			BKE_pose_where_is_bone(scene, ob, pchan, cfra, true);
 		
 			/* Compute old and new vectors for the bone direction */
 			sub_v3_v3v3(old_vec, pchan->pose_tail, pchan->pose_head);
@@ -478,9 +477,9 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 				
 				/* Copy new transforms back to the bone */
 				/* WARNING: The locations get cleared, so we must put them back later... */
-				print_m4("   before: ", pchan->pose_mat);
+				//print_m4("   before: ", pchan->pose_mat);
 				copy_m4_m3(pchan->pose_mat, rmat);
-				print_m4("   after: ", pchan->pose_mat);
+				//print_m4("   after: ", pchan->pose_mat);
 			}
 			
 			/* Apply actual values to be used later */
@@ -517,7 +516,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 			// XXX: unconnected bones should be able to be freely positioned!
 			if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
 				/* snap this bone to the chain, but do this for first in chain (to prevent repeated application) */
-				if (i == 0) {
+				if (use_offset && (i == 0)) {
 					BKE_armature_loc_pose_to_bone(pchan, p1->co, pchan->loc);
 				}
 				
@@ -556,6 +555,12 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	/* updates */
 	poseAnim_mapping_refresh(C, scene, ob);
 	
+	/* remove temp data? */
+	if (RNA_boolean_get(op->ptr, "keep_stroke") == false) {
+		// XXX: instead of deleting the last one, maybe delete the previous ones that got drawn?
+		gpencil_frame_delete_laststroke(gpl, gpf);
+	}
+	
 	return OPERATOR_FINISHED;
 }
 
@@ -574,7 +579,14 @@ void POSE_OT_sketch_direct(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO; // XXX: needed so that changing the parameters will attempt to reapply
 	
 	/* properties */
+	// XXX: These probably need to become toolsettings...
+	RNA_def_boolean(ot->srna, "use_offset", true, "Offset Chain", "Move chain to where the stroke was drawn (disable to just reshape in place)");
 	RNA_def_boolean(ot->srna, "use_stretch", false, "Stretch to Fit", "Stretch bones to match the stroke exactly");
+	
+	RNA_def_boolean(ot->srna, "use_closest_end_first", true, "Use Closest End First", "Match the closest end of the stroke to the start of the chain");
+	
+	// XXX: maybe this should rather be to erase the previous ones, and keep the current stroke (so that we can see how closely this new stroke matched?
+	RNA_def_boolean(ot->srna, "keep_stroke", false, "Keep Stroke", "After deforming the bones, keep the sketch that was drawn");
 }
 
 /* ***************************************************** */
