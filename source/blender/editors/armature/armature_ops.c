@@ -513,13 +513,13 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	
 	/* Sculpting - Grab */
 	// XXX: mappping here still needs work
-	WM_keymap_add_item(keymap, "POSE_OT_sculpt_grab", TKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "POSE_OT_sculpt_push", TKEY, KM_PRESS, KM_SHIFT, 0);
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_grab", LEFTMOUSE, KM_PRESS,        0, YKEY);
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_push", LEFTMOUSE, KM_PRESS, KM_SHIFT, YKEY);
 	
 	/* Sculpting - Adjust */
 	// XXX: mappping here still needs work
-	WM_keymap_add_item(keymap, "POSE_OT_sculpt_adjust", LEFTMOUSE, KM_PRESS, 0,        YKEY);
-	WM_keymap_add_item(keymap, "POSE_OT_sculpt_rotate", LEFTMOUSE, KM_PRESS, KM_SHIFT, YKEY);
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_adjust", LEFTMOUSE, KM_PRESS, 0,        VKEY);
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_rotate", LEFTMOUSE, KM_PRESS, KM_SHIFT, VKEY);
 	
 	/* Adjust brush size/strength */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
