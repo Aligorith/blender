@@ -166,6 +166,7 @@ void ED_operatortypes_armature(void)
 	
 	/* POSE SCULPTING */
 	WM_operatortype_append(POSE_OT_brush_paint);
+	WM_operatortype_append(POSE_OT_brush_set);
 }
 
 void ED_operatormacros_armature(void)
@@ -199,6 +200,7 @@ void ED_operatormacros_armature(void)
 	RNA_enum_set(otmacro->ptr, "proportional", 0);
 	
 	
+	/* Pose Sketching -------------------------------------------------------- */
 	
 	/* Pose Sketching operators for now must be paired with Grease Pencil ones
 	 * (GPencil first) or else we wouldn't have anything to work with
@@ -208,6 +210,50 @@ void ED_operatormacros_armature(void)
 	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
 	otmacro = WM_operatortype_macro_define(ot, "GPENCIL_OT_draw");
 	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_sketch_direct");
+	
+	/* Pose Sculpting -------------------------------------------------------- */
+	
+	/* Pose Sculpting convenience operators which set the brush type, then sculpts using that */
+	/* ADJUST */
+	ot = WM_operatortype_append_macro("POSE_OT_sculpt_adjust", "Sculpt Adjust Brush",
+	                                  "Sculpt pose using 'Adjust' brush",
+	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_set");
+	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_ADJUST);
+	WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
+	
+	/* GRAB */
+	ot = WM_operatortype_append_macro("POSE_OT_sculpt_grab", "Sculpt Grab Brush",
+	                                  "Sculpt pose using 'Grab' brush",
+	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_set");
+	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_GRAB);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
+	RNA_boolean_set(otmacro->ptr, "invert", false); /* This is *never* to be inverted, so just force the matter here... */
+	
+	/* RESET */
+	ot = WM_operatortype_append_macro("POSE_OT_sculpt_reset", "Sculpt Reset Brush",
+	                                  "Sculpt pose using 'Reset' brush",
+	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_set");
+	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_RESET);
+	WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
+	
+	/* CURL */
+	ot = WM_operatortype_append_macro("POSE_OT_sculpt_curl", "Sculpt Curl Brush",
+	                                  "Sculpt pose using 'Curl' brush",
+	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_set");
+	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_CURL);
+	WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
+	
+	/* STRETCH */
+	ot = WM_operatortype_append_macro("POSE_OT_sculpt_stretch", "Sculpt Stretch Brush",
+	                                  "Sculpt pose using 'Stretch' brush",
+	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_set");
+	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_STRETCH);
+	WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
 }
 
 void ED_keymap_armature(wmKeyConfig *keyconf)
@@ -433,13 +479,13 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	WM_keymap_add_menu(keymap, "VIEW3D_MT_pose_specials", WKEY, KM_PRESS, 0, 0);
 	WM_keymap_add_menu(keymap, "VIEW3D_MT_pose_propagate", PKEY, KM_PRESS, KM_ALT, 0);
 	
-	/* Pose -> Pose Sketching ----------- */
+	/* Pose -> Pose Sketching/Sculpting ------------- */
 	/* only set in posemode, by space_view3d listener */
+	// XXX: pehrpas the "direct" hotkeys should only be available when in sculpt mode (to replace the default movement keys), but nothing else?
 	
-	// XXX: temporary mappings
+#if 0 // XXX: temporary mappings
+	/* Sketch - Direct Chain */
 	WM_keymap_add_item(keymap, "POSE_OT_sketch_direct_interactive", EKEY, KM_PRESS, 0, 0);
-	
-	/* Pose -> Pose Sculpting ----------- */
 	
 	/* Sculpting - Apply effects... */
 	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, QKEY);
@@ -457,5 +503,62 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", QKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.pose_sculpt.brush.strength");
+	
+#else // ----------------- EXPERIMENTAL MAPPINGS -----------------------------------
+
+	/* Sketch - Direct Chain */
+	/* While needing two keys to be pressed makes this a bit more clumsy,
+	 * it helps to show that this won't start immediately. Maybe move to
+	 * Ctrl-T (or maybe save that for the "Line of Action"?)
+	 */
+	WM_keymap_add_item(keymap, "POSE_OT_sketch_direct_interactive", TKEY, KM_PRESS, KM_SHIFT, 0);
+	
+	/* Sculpting - Default */
+	/* Chosen as this is a rather central key that's usually indicated specially */
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS, 0, FKEY);
+	RNA_boolean_set(kmi->ptr, "invert", false);
+	
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS, KM_SHIFT, FKEY);
+	RNA_boolean_set(kmi->ptr, "invert", true);
+	
+	/* Sculpting - Adjust/Rotate */
+	/* Chosen as this is a common operation that happens often. Using Q here is quite comfy */
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_adjust", LEFTMOUSE, KM_PRESS, 0, QKEY);
+	RNA_boolean_set(kmi->ptr, "invert", false);
+	
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_adjust", LEFTMOUSE, KM_PRESS, KM_SHIFT, QKEY);
+	RNA_boolean_set(kmi->ptr, "invert", true);
+	
+	/* Sculpting - Grab */
+	/* Another common operation (but which cannot be inverted). So, have this on the homerow near Rotate for quick switching */
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_grab", LEFTMOUSE, KM_PRESS, 0, EKEY);
+	RNA_boolean_set(kmi->ptr, "invert", false);
+	
+	/* Sculpting - Reset */
+	/* Used for clearing transforms, so 'x' to "scrub" seems like a good match... */
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_reset", LEFTMOUSE, KM_PRESS, 0, XKEY);
+	RNA_boolean_set(kmi->ptr, "invert", false);
+	
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_reset", LEFTMOUSE, KM_PRESS, KM_SHIFT, XKEY);
+	RNA_boolean_set(kmi->ptr, "invert", true);
+	
+	/* Curl */
+	/* This is somewhat nice to be able to easily hit... */
+	// XXX: Swap this out for something more important if it shows up
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_curl", LEFTMOUSE, KM_PRESS, 0, VKEY);
+	RNA_boolean_set(kmi->ptr, "invert", false);
+	
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_curl", LEFTMOUSE, KM_PRESS, KM_SHIFT, VKEY);
+	RNA_boolean_set(kmi->ptr, "invert", true);
+	
+	/* Sculpting - Stretch */
+	/* Hitting 'y' is a bit of stretch too! */
+	// XXX: Swap this out for something more important if it shows up
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_stretch", LEFTMOUSE, KM_PRESS, 0, YKEY);
+	RNA_boolean_set(kmi->ptr, "invert", false);
+	
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_sculpt_stretch", LEFTMOUSE, KM_PRESS, KM_SHIFT, YKEY);
+	RNA_boolean_set(kmi->ptr, "invert", true);
+#endif
 }
 

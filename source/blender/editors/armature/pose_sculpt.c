@@ -95,6 +95,9 @@ typedef struct tPoseSculptingOp {
 	
 	/* Brush Runtime Data ---------------- */
 	
+	/* Sculpt Settings - Overall */
+	PSculptSettings *psculpt_settings;
+	
 	/* General Brush Data */
 	PSculptBrushData *brush;      /* active brush */
 	ePSculptBrushType brush_type; /* type of brush */
@@ -191,9 +194,10 @@ int psculpt_poll(bContext *C)
 /* Cursor drawing */
 
 /* Helper callback for drawing the cursor itself */
-static void psculpt_brush_apply_drawcursor(bContext *C, int x, int y, void *UNUSED(customdata))
+static void psculpt_brush_apply_drawcursor(bContext *C, int x, int y, void *customdata)
 {
-	PSculptBrushData *brush = psculpt_get_brush(CTX_data_scene(C));
+	tPoseSculptingOp *pso = customdata;
+	PSculptBrushData *brush = pso->brush;
 	
 	if (brush) {
 		glPushMatrix();
@@ -216,9 +220,9 @@ static void psculpt_brush_apply_drawcursor(bContext *C, int x, int y, void *UNUS
 }
 
 /* Turn brush cursor in 3D view on/off */
-static void psculpt_toggle_cursor(bContext *C, bool enable)
+static void psculpt_toggle_cursor(bContext *C, tPoseSculptingOp *pso, bool enable)
 {
-	PSculptSettings *pset = psculpt_settings(CTX_data_scene(C));
+	PSculptSettings *pset = pso->psculpt_settings;
 	
 	if (pset->paintcursor && !enable) {
 		/* clear cursor */
@@ -229,7 +233,7 @@ static void psculpt_toggle_cursor(bContext *C, bool enable)
 		/* enable cursor */
 		pset->paintcursor = WM_paint_cursor_activate(CTX_wm_manager(C), 
 		                                             psculpt_poll, 
-		                                             psculpt_brush_apply_drawcursor, NULL);
+		                                             psculpt_brush_apply_drawcursor, pso);
 	}
 }
 
@@ -1455,6 +1459,8 @@ static int psculpt_brush_init(bContext *C, wmOperator *op)
 	pso->affected_bones = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, "psculpt affected bones gh");
 	
 	/* get brush stuff */
+	pso->psculpt_settings = pset;
+	
 	pso->brush = psculpt_get_brush(scene);
 	pso->brush_type = pset->brushtype;
 	
@@ -1479,7 +1485,7 @@ static int psculpt_brush_init(bContext *C, wmOperator *op)
 	psculpt_brush_header_info(C);
 	
 	WM_cursor_modal_set(CTX_wm_window(C), BC_CROSSCURSOR);
-	psculpt_toggle_cursor(C, true);
+	psculpt_toggle_cursor(C, pso, true);
 	
 	return true;
 }
@@ -1504,7 +1510,7 @@ static void psculpt_brush_exit(bContext *C, wmOperator *op)
 	ED_area_headerprint(CTX_wm_area(C), NULL);
 	
 	WM_cursor_modal_restore(win);
-	psculpt_toggle_cursor(C, false);
+	psculpt_toggle_cursor(C, pso, false);
 	
 	/* free operator data */
 	MEM_freeN(pso);
@@ -1869,10 +1875,7 @@ static int psculpt_brush_exec(bContext *C, wmOperator *op)
 
 /* start modal painting */
 static int psculpt_brush_invoke(bContext *C, wmOperator *op, const wmEvent *event)
-{	
-	Scene *scene = CTX_data_scene(C);
-	
-	PSculptSettings *pset = psculpt_settings(scene);
+{
 	tPoseSculptingOp *pso = NULL;
 	
 	/* init painting data */
@@ -1988,7 +1991,7 @@ void POSE_OT_brush_paint(wmOperatorType *ot)
 	ot->idname = "POSE_OT_brush_paint";
 	ot->description = "Pose sculpting paint brush";
 	
-	/* api callbacks */
+	/* callbacks */
 	ot->exec = psculpt_brush_exec;
 	ot->invoke = psculpt_brush_invoke;
 	ot->modal = psculpt_brush_modal;
@@ -2001,6 +2004,38 @@ void POSE_OT_brush_paint(wmOperatorType *ot)
 	/* properties */
 	RNA_def_collection_runtime(ot->srna, "stroke", &RNA_OperatorStrokeElement, "Stroke", "");
 	RNA_def_boolean(ot->srna, "invert", false, "Invert Brush Action", "Override brush direction to apply inverse operation");
+}
+
+/* ******************************************************** */
+/* Utility to set Brush Type
+ *
+ * Utility operator for internal use (in macros) for setting the brush type
+ * and then allowing sculpting with that brush type. We need a better solution,
+ * but this is just meant as a temporary solution in the meantime.
+ */
+
+static int psculpt_brush_set_exec(bContext *C, wmOperator *op)
+{
+	PSculptSettings *pset = psculpt_settings(CTX_data_scene(C));
+	pset->brushtype = RNA_int_get(op->ptr, "brush_type");  // XXX: type
+	
+	return OPERATOR_FINISHED;
+}
+ 
+void POSE_OT_brush_set(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Set Pose Sculpt Brush Type";
+	ot->idname = "POSE_OT_brush_set";
+	ot->description = "Set pose sculpting brush type";
+	
+	/* callbacks */
+	ot->exec = psculpt_brush_set_exec;
+	ot->poll = psculpt_poll;
+	
+	/* properties */
+	// XXX: This is just a cheap way of doing this for now (without having to expose everything)
+	ot->prop = RNA_def_int(ot->srna, "brush_type", 0, 0, PSCULPT_TOT_BRUSH - 1, "Brush Type", "", 0, PSCULPT_TOT_BRUSH - 1); 
 }
 
 /* ******************************************************** */
