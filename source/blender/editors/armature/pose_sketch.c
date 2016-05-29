@@ -42,6 +42,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_anim_types.h"
 #include "DNA_action_types.h"
 #include "DNA_armature_types.h"
 //#include "DNA_constraint_types.h"
@@ -61,6 +62,7 @@
 
 #include "ED_armature.h"
 #include "ED_gpencil.h"
+#include "ED_keyframing.h"
 #include "ED_screen.h"
 
 #include "armature_intern.h"
@@ -462,6 +464,47 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 
 /* ---------------------------------------------------------------- */
 
+/* Perform auto keying on chain of bones */
+/* XXX: This is practically the same as poseAnim_mapping_autoKeyframe() again,
+ *      except we use a slightly different way of mapping bones to dsources...
+ */
+static void psketch_bones_autokeyframe(bContext *C, Scene *scene, Object *ob, bPoseChannel **bones, size_t num_items, float cframe)
+{
+	/* insert keyframes as necessary if autokeyframing */
+	if (autokeyframe_cfra_can_key(scene, &ob->id)) {
+		KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, ANIM_KS_WHOLE_CHARACTER_ID);
+		ListBase dsources = {NULL, NULL};
+		size_t i;
+		
+		/* iterate over each pose-channel affected, tagging bones to be keyed */
+		for (i = 0; i < num_items; i++) {
+			bPoseChannel *pchan = bones[i];
+			
+			/* add datasource override for the PoseChannel, to be used later */
+			ANIM_relative_keyingset_add_source(&dsources, &ob->id, &RNA_PoseBone, pchan); 
+			
+			/* clear any unkeyed tags */
+			if (pchan->bone)
+				pchan->bone->flag &= ~BONE_UNKEYED;
+		}
+		
+		/* insert keyframes for all relevant bones in one go */
+		ANIM_apply_keyingset(C, &dsources, NULL, ks, MODIFYKEY_MODE_INSERT, cframe);
+		BLI_freelistN(&dsources);
+		
+		/* do the bone paths
+		 *	- only do this if keyframes should have been added
+		 *	- do not calculate unless there are paths already to update...
+		 */
+		if (ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS) {
+			//ED_pose_clear_paths(C, ob); // XXX for now, don't need to clear
+			ED_pose_recalculate_paths(scene, ob);
+		}
+	}
+}
+
+/* ---------------------------------------------------------------- */
+
 /* Adaptation of "Direct Mode" technique from Oztireli et al. (2013) */
 static int psketch_direct_exec(bContext *C, wmOperator *op)
 {
@@ -592,13 +635,16 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	}
 	
 	
+	/* 6) Updates and auto keying
+	 *    - Autokeying first, so that the pose is not lost if things go wrong
+	 */
+	psketch_bones_autokeyframe(C, scene, ob, chain, num_items, (float)CFRA);
+	poseAnim_mapping_refresh(C, scene, ob);
+	
 	/* Free temp data */
 	MEM_freeN(chain);
 	MEM_freeN(joint_dists);
 	MEM_freeN(spoints);
-	
-	/* Updates */
-	poseAnim_mapping_refresh(C, scene, ob);
 	
 	/* Remove temp stroke data? */
 	if (RNA_boolean_get(op->ptr, "keep_stroke") == false) {
