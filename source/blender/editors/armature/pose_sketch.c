@@ -72,6 +72,15 @@
 #include "WM_types.h"
 
 /* ***************************************************** */
+/* Constants and Defines */
+
+/* Simplified GPencil stroke point, ready for pose matching */
+typedef struct tGPStrokePosePoint {
+	float co[3];	/* pose-space coordinates of this point */
+	int index;		/* original index of this point in the stroke */
+} tGPStrokePosePoint;
+
+/* ***************************************************** */
 /* Simple "Direct-Sketch" operator:
  * This operator assumes that the sketched line directly corresponds to
  * a bone chain, allowing us to directly map the bones to the sketched
@@ -94,13 +103,6 @@ static bool psketch_direct_bone_can_include(bPoseChannel *pchan, bPoseChannel *p
 }
 
 /* ---------------------------------------------------------------- */
-
-/* Simplified GPencil stroke point, ready for pose matching */
-typedef struct tGPStrokePosePoint {
-	float co[3];	/* pose-space coordinates of this point */
-	int index;		/* original index of this point in the stroke */
-} tGPStrokePosePoint;
-
 
 /* Helper for Step 2
  * Check if stroke needs to be interpreted in reverse order
@@ -242,7 +244,7 @@ static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stro
 		
 		/* Get the distance that this stroke point is supposed to represent */
 		/* NOTE: Multiplying the target distance out may lead to precision issues,
-		 * but at least we don't need to do O(n) divides - one per poitn!
+		 * but at least we don't need to do O(n) divides - one per point!
 		 */
 		if (reversed) {
 			/* Reverse Order - ith joint from end/tail of chain */
