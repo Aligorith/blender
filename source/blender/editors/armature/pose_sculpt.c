@@ -911,11 +911,11 @@ static void psculpt_brush_grab_apply(tPoseSculptingOp *pso, bPoseChannel *pchan,
 	float cvec[3];
 	float fac;
 	
-	/* strength of push */
+	/* strength of grab/push */
 	fac = psculpt_brush_calc_influence(pso, dist);
-	if (pso->invert) fac = -fac;
 	
-	if (brush->flag & PSCULPT_BRUSH_FLAG_GRAB_INITIAL) {
+	/* when invert is true, we don't restrict ourselves to the initial set only (i.e. "push") */
+	if ((brush->flag & PSCULPT_BRUSH_FLAG_GRAB_INITIAL) && (pso->invert == false)) {
 		tAffectedBone *tab = verify_bone_is_affected(pso, pchan, pso->is_first);
 		
 		/* if one couldn't be found or added, then it didn't exist the first time round,
