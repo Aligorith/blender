@@ -499,11 +499,10 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	WM_keymap_add_item(keymap, "POSE_OT_sketch_direct_interactive", EKEY, KM_PRESS, 0, 0);
 	
 	/* Sculpting - Apply effects... */
-	// XXX: it would be nice if this was used exclusively for the draw/adjust brush...
-	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS,        0, QKEY);
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS,        0, VKEY);
 	RNA_boolean_set(kmi->ptr, "invert", false);
 	
-	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS, KM_SHIFT, QKEY);
+	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS, KM_SHIFT, VKEY);
 	RNA_boolean_set(kmi->ptr, "invert", true);
 	
 	/* Sculpting - Reset */
@@ -518,8 +517,8 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	
 	/* Sculpting - Adjust */
 	// XXX: mappping here still needs work
-	WM_keymap_add_item(keymap, "POSE_OT_sculpt_adjust", LEFTMOUSE, KM_PRESS, 0,        VKEY);
-	WM_keymap_add_item(keymap, "POSE_OT_sculpt_rotate", LEFTMOUSE, KM_PRESS, KM_SHIFT, VKEY);
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_adjust", LEFTMOUSE, KM_PRESS, 0,        QKEY);
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_rotate", LEFTMOUSE, KM_PRESS, KM_SHIFT, QKEY);
 	
 	/* Adjust brush size/strength */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
