@@ -323,6 +323,7 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
                                                const bool use_offset, const bool use_stretch,
                                                const float cfra)
 {
+	const short locks = pchan->protectflag;
 	float old_vec[3], new_vec[3];
 	float old_len, new_len, sfac;
 	float dmat[3][3];
@@ -423,7 +424,14 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 			 * TODO: XZ scaling modes could be introduced
 			 * here as an alternative.
 			 */
-			mul_v3_fl(pchan->size, sfac);
+			if (locks & (OB_LOCK_SCALEX | OB_LOCK_SCALEY | OB_LOCK_SCALEZ)) {
+				if ((locks & OB_LOCK_SCALEX) == 0) pchan->size[0] *= sfac;
+				if ((locks & OB_LOCK_SCALEY) == 0) pchan->size[1] *= sfac;
+				if ((locks & OB_LOCK_SCALEZ) == 0) pchan->size[2] *= sfac;
+			}
+			else {
+				mul_v3_fl(pchan->size, sfac);
+			}
 		}
 	}
 	
@@ -432,12 +440,30 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 	if ((pchan->parent == NULL) || ((pchan->bone) && (pchan->bone->flag & BONE_CONNECTED) == 0)) {
 		/* snap this bone to the chain, but do this for first in chain (to prevent repeated application) */
 		if (use_offset && (chain_idx == 0)) {
-			BKE_armature_loc_pose_to_bone(pchan, new_head, pchan->loc);
+			float new_loc[3];
+			
+			/* convert from pose space to bone space */
+			BKE_armature_loc_pose_to_bone(pchan, new_head, new_loc);
+			
+			/* don't apply on any locked channel */
+			if (locks & OB_LOCK_LOCX) new_loc[0] = pchan->loc[0];
+			if (locks & OB_LOCK_LOCY) new_loc[1] = pchan->loc[1];
+			if (locks & OB_LOCK_LOCZ) new_loc[2] = pchan->loc[2];
+			
+			/* now copy over */
+			copy_v3_v3(pchan->loc, new_loc);
 		}
 		
 		/* head -> start of chain */
-		copy_v3_v3(pchan->pose_mat[3], new_head);
-		copy_v3_v3(pchan->pose_head, new_head);
+		if (locks & (OB_LOCK_LOCX | OB_LOCK_LOCY | OB_LOCK_LOCZ)) {
+			if ((locks & OB_LOCK_LOCX) == 0) pchan->pose_head[0] = pchan->pose_mat[3][0] = new_head[0];
+			if ((locks & OB_LOCK_LOCY) == 0) pchan->pose_head[1] = pchan->pose_mat[3][1] = new_head[1];
+			if ((locks & OB_LOCK_LOCZ) == 0) pchan->pose_head[2] = pchan->pose_mat[3][2] = new_head[2];
+		}
+		else {
+			copy_v3_v3(pchan->pose_mat[3], new_head);
+			copy_v3_v3(pchan->pose_head, new_head);
+		}
 	}
 	else if (pchan->parent) {
 		/* head -> parent's tip (as it would have been modified by previous) */

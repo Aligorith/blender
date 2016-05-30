@@ -1198,8 +1198,12 @@ static void psculpt_brush_stretch_apply(tPoseSculptingOp *pso, bPoseChannel *pch
 	else
 		fac = 1.0f + fac;
 	
-	/* perform scaling on y-axis - that's what "stretching" is! */
-	pchan->size[1] *= fac;
+	/* perform scaling on y-axis - that's what "stretching" is!
+	 * (but still respect locks - when this is locked, the others can just be shrink/fatten)
+	 */
+	if ((locks & OB_LOCK_SCALEY) == 0) {
+		pchan->size[1] *= fac;
+	}
 	
 	/* scale on x/z axes, whichever isn't locked */
 	invfac = psculpt_brush_calc_volume_preserve_correction(brush, pchan, fac);
