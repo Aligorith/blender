@@ -664,9 +664,10 @@ void BKE_scene_init(Scene *sce)
 		psculpt->brush[a].bulge_max = 1.0f;
 	}
 	psculpt->brush[PSCULPT_BRUSH_SMOOTH].strength = 0.25f;
+	psculpt->brush[PSCULPT_BRUSH_GRAB].strength = 1.0f;
 	psculpt->brush[PSCULPT_BRUSH_CURL].strength = 0.25f;
 	psculpt->brush[PSCULPT_BRUSH_TWIST].strength = 0.25f;
-	psculpt->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
+	//psculpt->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
 	psculpt->brush[PSCULPT_BRUSH_CURL].xzMode = PSCULPT_BRUSH_DO_X;
 	psculpt->brush[PSCULPT_BRUSH_GRAB].flag |= PSCULPT_BRUSH_FLAG_GRAB_INITIAL;
 	psculpt->brush[PSCULPT_BRUSH_STRETCH].flag |= PSCULPT_BRUSH_FLAG_VOL_PRESERVE;

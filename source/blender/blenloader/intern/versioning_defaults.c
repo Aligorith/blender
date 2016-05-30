@@ -248,8 +248,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 		for (scene = bmain->scene.first; scene; scene = scene->id.next) {
 			PSculptSettings *pset = &scene->toolsettings->psculpt;
 			
-			//if (pset->brush[0].size == 0) 
-			{
+			if (pset->brush[0].size == 0) {
 				int i;
 				
 				for (i = 0; i < PSCULPT_TOT_BRUSH; i++) {
@@ -263,9 +262,10 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 					pset->brush[i].bulge_max = 1.0f;
 				}
 				pset->brush[PSCULPT_BRUSH_SMOOTH].strength = 0.25f;
+				pset->brush[PSCULPT_BRUSH_GRAB].strength = 1.0f;
 				pset->brush[PSCULPT_BRUSH_CURL].strength = 0.25f;
 				pset->brush[PSCULPT_BRUSH_TWIST].strength = 0.25f;
-				pset->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
+				//pset->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
 				pset->brush[PSCULPT_BRUSH_CURL].xzMode = PSCULPT_BRUSH_DO_X;
 				pset->brush[PSCULPT_BRUSH_GRAB].flag |= PSCULPT_BRUSH_FLAG_GRAB_INITIAL;
 				pset->brush[PSCULPT_BRUSH_STRETCH].flag |= PSCULPT_BRUSH_FLAG_VOL_PRESERVE;
