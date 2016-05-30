@@ -209,7 +209,7 @@ void ED_operatormacros_armature(void)
 	                                  "Interactively sketch the pose for the selected bones",
 	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
 	otmacro = WM_operatortype_macro_define(ot, "GPENCIL_OT_draw");
-	//RNA_boolean_set(otmacro->ptr, "wait_for_input", false); /* XXX - this means it can't be used from toolbars, but allows for nicer workflow */
+	RNA_boolean_set(otmacro->ptr, "wait_for_input", false); /* XXX - this means it can't be used from toolbars, but allows for nicer workflow */
 	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_sketch_direct");
 	
 	/* Pose Sculpting -------------------------------------------------------- */
@@ -496,7 +496,7 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	// XXX: pehrpas the "direct" hotkeys should only be available when in sculpt mode (to replace the default movement keys), but nothing else?
 	
 	/* Sketch - Direct Chain */
-	WM_keymap_add_item(keymap, "POSE_OT_sketch_direct_interactive", EKEY, KM_PRESS, 0, 0);
+	WM_keymap_add_item(keymap, "POSE_OT_sketch_direct_interactive", LEFTMOUSE, KM_PRESS, 0, EKEY);
 	
 	/* Sculpting - Apply effects... */
 	kmi = WM_keymap_add_item(keymap, "POSE_OT_brush_paint", LEFTMOUSE, KM_PRESS,        0, VKEY);
