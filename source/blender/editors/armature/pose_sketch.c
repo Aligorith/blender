@@ -573,8 +573,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	}
 	CTX_DATA_END;
 	
-	if (num_items < 2) {
-		BKE_report(op->reports, RPT_ERROR, "Select a chain of two or more bones first");
+	if (num_items < 1) {
+		BKE_report(op->reports, RPT_ERROR, "Select at least one bone, or better, a chain of bones");
 		return OPERATOR_CANCELLED;
 	}
 	
