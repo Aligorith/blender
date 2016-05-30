@@ -266,6 +266,23 @@ void ED_operatormacros_armature(void)
 	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_RESET);
 	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
 	RNA_boolean_set(otmacro->ptr, "invert", true);
+	
+	/* SELECT */
+	ot = WM_operatortype_append_macro("POSE_OT_sculpt_select", "Sculpt 'Select' Brush",
+	                                  "Sculpt pose using 'Select' brush",
+	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_set");
+	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_SELECT);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
+	RNA_boolean_set(otmacro->ptr, "invert", false);
+	
+	ot = WM_operatortype_append_macro("POSE_OT_sculpt_deselect", "Sculpt 'Deselect' Brush",
+	                                  "Sculpt pose using 'Deselect' brush",
+	                                  OPTYPE_UNDO | OPTYPE_REGISTER);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_set");
+	RNA_int_set(otmacro->ptr, "brush_type", PSCULPT_BRUSH_SELECT);
+	otmacro = WM_operatortype_macro_define(ot, "POSE_OT_brush_paint");
+	RNA_boolean_set(otmacro->ptr, "invert", true);
 }
 
 void ED_keymap_armature(wmKeyConfig *keyconf)
@@ -519,6 +536,10 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	// XXX: mappping here still needs work
 	WM_keymap_add_item(keymap, "POSE_OT_sculpt_adjust", LEFTMOUSE, KM_PRESS, 0,        QKEY);
 	WM_keymap_add_item(keymap, "POSE_OT_sculpt_rotate", LEFTMOUSE, KM_PRESS, KM_SHIFT, QKEY);
+	
+	/* Sculpting - Select (For smoother workflow) */
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_select",   LEFTMOUSE, KM_PRESS, 0,        KKEY);
+	WM_keymap_add_item(keymap, "POSE_OT_sculpt_deselect", LEFTMOUSE, KM_PRESS, KM_SHIFT, KKEY);
 	
 	/* Adjust brush size/strength */
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, 0, 0);
