@@ -529,6 +529,15 @@ static void psketch_bones_autokeyframe(bContext *C, Scene *scene, Object *ob, bP
 	}
 }
 
+/* Cleanup temp data before finishing off - even if (and especially if) nothing happened */
+static void psketch_exit_cleanup(wmOperator *op, bGPDlayer *gpl)
+{
+	if (RNA_boolean_get(op->ptr, "keep_stroke") == false) {
+		// XXX: instead of deleting the last one, maybe delete the previous ones that got drawn?
+		gpencil_frame_delete_laststroke(gpl, gpl->actframe);
+	}
+}
+
 /* ---------------------------------------------------------------- */
 
 /* Adaptation of "Direct Mode" technique from Oztireli et al. (2013) */
@@ -600,12 +609,16 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 	
 	if (num_items < 1) {
-		BKE_report(op->reports, RPT_ERROR, "Select at least one bone, or better, a chain of bones");
+		BKE_report(op->reports, RPT_ERROR, "Select at least one bone (or more for an even closer fit)");
+		
+		psketch_exit_cleanup(op, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
 	if (IS_EQ(chain_len, 0.0f)) {
 		BKE_report(op->reports, RPT_ERROR, "Zero length bone chain!");
+		
+		psketch_exit_cleanup(op, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
@@ -618,6 +631,8 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	
 	if (ELEM(NULL, first_bone, last_bone)) {
 		BKE_report(op->reports, RPT_ERROR, "Could not find first and last bone");
+		
+		psketch_exit_cleanup(op, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
@@ -673,10 +688,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	MEM_freeN(spoints);
 	
 	/* Remove temp stroke data? */
-	if (RNA_boolean_get(op->ptr, "keep_stroke") == false) {
-		// XXX: instead of deleting the last one, maybe delete the previous ones that got drawn?
-		gpencil_frame_delete_laststroke(gpl, gpf);
-	}
+	psketch_exit_cleanup(op, gpl);
 	
 	return OPERATOR_FINISHED;
 }
