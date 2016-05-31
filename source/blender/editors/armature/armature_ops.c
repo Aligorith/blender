@@ -547,5 +547,9 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	
 	kmi = WM_keymap_add_item(keymap, "WM_OT_radial_control", FKEY, KM_PRESS, KM_SHIFT, 0);
 	RNA_string_set(kmi->ptr, "data_path_primary", "tool_settings.pose_sculpt.brush.strength");
+	
+	/* Change brush type */
+	kmi = WM_keymap_add_item(keymap, "WM_OT_context_menu_enum", TKEY, KM_PRESS, KM_SHIFT, 0);
+	RNA_string_set(kmi->ptr, "data_path", "tool_settings.pose_sculpt.tool");
 }
 
