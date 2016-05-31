@@ -280,6 +280,7 @@ static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stro
 			sp = &stroke->points[j];
 		}
 		
+		dist      = distances[j];
 		dist_prev = distances[j - 1];
 		prev = sp - 1;
 		
