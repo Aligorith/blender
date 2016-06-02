@@ -650,7 +650,9 @@ void pchan_do_rotate(Object *ob, bPoseChannel *pchan, float mat[3][3])
 			/* mat = transform, obmat = bone rotation */
 			mul_m3_m3m3(fmat, smat, eulmat);
 			
-			mat3_to_compatible_eulO(eul, pchan->eul, pchan->rotmode, fmat);
+			// XXX: watch it! we don't want the bone passing through the chain if animated!
+			//mat3_to_compatible_eulO(eul, pchan->eul, pchan->rotmode, fmat);
+			mat3_to_eulO(eul, pchan->rotmode, fmat);
 			
 			/* and apply (to end result only) */
 			if (locks & OB_LOCK_ROTX) eul[0] = pchan->eul[0];

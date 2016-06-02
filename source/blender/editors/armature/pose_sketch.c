@@ -405,8 +405,10 @@ static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
 	
 	/* Apply actual values to be used later */
 	{
-		/* Just rotate the bone... */
-		// XXX: This needs to happen in worldspace, as that method assumes this was rotation originating from screenspace -> worldspace
+		/* Just rotate the bone...
+		 * - This needs to happen in worldspace, as that method assumes this was
+		 *   rotation originating from screenspace -> worldspace
+		 */
 		float old_vec_world[3], new_vec_world[3];
 		float rmat[3][3];
 		
