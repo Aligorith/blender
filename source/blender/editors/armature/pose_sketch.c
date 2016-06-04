@@ -577,10 +577,14 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	}
 	else if (stroke->totpoints == 1) {
 		BKE_report(op->reports, RPT_ERROR, "Stroke is unusable (i.e. it is just a dot)");
+		
+		psketch_exit_cleanup(op, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	else if ((stroke->flag & GP_STROKE_3DSPACE) == 0) {
 		BKE_report(op->reports, RPT_ERROR, "Stroke is unusable - it must be in 3D space (e.g. use 'Cursor' or 'Depth' alignment modes)");
+		
+		psketch_exit_cleanup(op, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
