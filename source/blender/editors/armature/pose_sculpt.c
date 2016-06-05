@@ -931,10 +931,12 @@ static void psculpt_brush_grab_apply(tPoseSculptingOp *pso, bPoseChannel *pchan,
 			tab->fac = fac;
 		}
 		else {
-			/* don't use falloff - works better for chains */
-			//fac = 1.0f;
+			/* use stored falloff */
+			// XXX: it was better for chains if we didn't use the stored falloff...
+			fac = tab->fac;
 		}
 	}
+	//printf("%s: %f (%d)\n", pchan->name, fac, pso->is_first);
 	
 	/* compute inverse matrix to convert from screen-space to bone space */
 	mul_m4_m4m4(mat, pso->ob->obmat, pchan->bone->arm_mat);
