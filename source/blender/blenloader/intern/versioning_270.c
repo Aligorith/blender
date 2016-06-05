@@ -1106,7 +1106,7 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 			psketch->thickness = 4;
 			strcpy(psketch->layer_name, "PSketch");
 			
-			psketch->flag = (PSKETCH_FLAG_USE_OFFSET | PSKETCH_FLAG_USE_CLOSEST_END_FIRST);
+			psketch->flag = PSKETCH_FLAG_USE_CLOSEST_END_FIRST;
 		}
 	}
 }

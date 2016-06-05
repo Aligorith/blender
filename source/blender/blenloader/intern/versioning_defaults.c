@@ -280,7 +280,7 @@ void BLO_update_defaults_startup_blend(Main *bmain)
 				psketch->thickness = 4;
 				strcpy(psketch->layer_name, "PSketch");
 				
-				psketch->flag = (PSKETCH_FLAG_USE_OFFSET | PSKETCH_FLAG_USE_CLOSEST_END_FIRST);
+				psketch->flag = PSKETCH_FLAG_USE_CLOSEST_END_FIRST;
 			}
 		}
 	}
