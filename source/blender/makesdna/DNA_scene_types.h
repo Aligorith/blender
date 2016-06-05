@@ -1008,6 +1008,38 @@ typedef struct ParticleEditSettings {
 } ParticleEditSettings;
 
 /* ------------------------------------------- */
+/* Pose Sketching */
+
+/* Pose Sketching Settings */
+typedef struct PSketchSettings {
+	/* GP Layer Settings */
+	char layer_name[128];  /* Name of the GP layer that bGPDlayer.info */
+	float color[4];        /* Color of GP strokes used for this tool */
+	short thickness;       /* Stroke thickness */
+	
+	/* Sketch Solver Settings */
+	short flag;            /* ePSketchFlag */
+	char pad[4];
+} PSketchSettings;
+
+
+/* Flags for Pose Sketching */
+typedef enum ePSketchFlag {
+	/* Offset start of chain to line up with the stroke */
+	PSKETCH_FLAG_USE_OFFSET              = (1 << 0),
+	/* Stretch bones in chain to match the stroke exactly (but risking causing scaling issues) */
+	PSKETCH_FLAG_USE_STRETCH             = (1 << 1),
+	
+	/* Use end of stroke closest to one end of the chain as the starting point */
+	PSKETCH_FLAG_USE_CLOSEST_END_FIRST   = (1 << 2),
+	
+	/* Retain GP Stroke(s) after deforming the pose */
+	PSKETCH_FLAG_KEEP_STROKE             = (1 << 3),
+	/* Remove all previous strokes on this frame (to be used with KEEP_STROKE), for seeing the last stroke without getting clutter */
+	PSKETCH_FLAG_REMOVE_PREV_STROKES     = (1 << 4),
+} ePSketchFlag;
+
+/* ------------------------------------------- */
 /* Pose Sculpting */
 
 /* Pose Sculpting Brush */
@@ -1352,6 +1384,9 @@ typedef struct ToolSettings {
 	
 	/* Pose Sculpt */
 	struct PSculptSettings psculpt;
+	
+	/* Pose Sketching */
+	struct PSketchSettings psketch;
 	
 	/* Transform Proportional Area of Effect */
 	float proportional_size;

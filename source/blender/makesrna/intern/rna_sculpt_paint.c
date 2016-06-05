@@ -241,6 +241,16 @@ static char *rna_PoseSculpt_path(PointerRNA *UNUSED(ptr))
 	return BLI_strdup("tool_settings.pose_sculpt");
 }
 
+static void rna_PoseSketch_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
+{
+	WM_main_add_notifier(NC_SPACE | ND_SPACE_VIEW3D, NULL);
+}
+
+static char *rna_PoseSketch_path(PointerRNA *UNUSED(ptr))
+{
+	return BLI_strdup("tool_settings.pose_sketch");
+}
+
 static int rna_Brush_mode_poll(PointerRNA *ptr, PointerRNA value)
 {
 	Scene *scene = (Scene *)ptr->id.data;
@@ -1229,6 +1239,42 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_PSculptBrush_update");
 }
 
+/* While not strictly a "sculpt" mode, this is similar enough to Pose Sculpt that it'll be easier to find it here... */
+static void rna_def_pose_sketch(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+	
+	srna = RNA_def_struct(brna, "PoseSketch", NULL);
+	RNA_def_struct_sdna(srna, "PSketchSettings");
+	RNA_def_struct_path_func(srna, "rna_PoseSketch_path");
+	RNA_def_struct_ui_text(srna, "Pose Sketch", "Properties of pose sketching tool");
+	
+	/* Chain Deformation Settings */
+	prop = RNA_def_property(srna, "use_offset", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSKETCH_FLAG_USE_OFFSET);
+	RNA_def_property_ui_text(prop, "Offset Chain", "Move chain to where the stroke was drawn (disable to just reshape in place)");
+	RNA_def_property_update(prop, 0, "rna_PoseSketch_update");
+	
+	prop = RNA_def_property(srna, "use_stretch", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSKETCH_FLAG_USE_STRETCH);
+	RNA_def_property_ui_text(prop, "Stretch to Fit", "Stretch bones to match the stroke exactly");
+	RNA_def_property_update(prop, 0, "rna_PoseSketch_update");
+	
+	/* Stroke Matching Settings */
+	prop = RNA_def_property(srna, "use_closest_end_first", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSKETCH_FLAG_USE_CLOSEST_END_FIRST);
+	RNA_def_property_ui_text(prop, "Use Closest End First", "Match the closest end of the stroke to the start of the chain");
+	RNA_def_property_update(prop, 0, "rna_PoseSketch_update");
+	
+	/* Reference Strokes */
+	// XXX: maybe this should rather be to erase the previous ones, and keep the current stroke (so that we can see how closely this new stroke matched?
+	prop = RNA_def_property(srna, "keep_stroke", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSKETCH_FLAG_KEEP_STROKE);
+	RNA_def_property_ui_text(prop, "Keep Stroke", "After deforming the bones, keep the sketch that was drawn");
+	RNA_def_property_update(prop, 0, "rna_PoseSketch_update");
+}
+
 void RNA_def_sculpt_paint(BlenderRNA *brna)
 {
 	/* *** Non-Animated *** */
@@ -1242,6 +1288,7 @@ void RNA_def_sculpt_paint(BlenderRNA *brna)
 	rna_def_particle_edit(brna);
 	rna_def_gpencil_sculpt(brna);
 	rna_def_pose_sculpt(brna);
+	rna_def_pose_sketch(brna);
 	RNA_define_animate_sdna(true);
 }
 

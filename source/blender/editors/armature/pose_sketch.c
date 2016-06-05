@@ -83,6 +83,15 @@ typedef struct tGPStrokePosePoint {
 } tGPStrokePosePoint;
 
 /* ***************************************************** */
+/* Utilities */
+
+/* Get settings for sketch tools */
+static PSketchSettings *psketch_settings(bContext *C)
+{
+	ToolSettings *ts = CTX_data_tool_settings(C);
+	return &ts->psketch;
+}
+/* ***************************************************** */
 /* Simple "Direct-Sketch" operator:
  * This operator assumes that the sketched line directly corresponds to
  * a bone chain, allowing us to directly map the bones to the sketched
@@ -318,12 +327,14 @@ static tGPStrokePosePoint *psketch_stroke_to_points(Object *ob, bGPDstroke *stro
 /* ---------------------------------------------------------------- */
 
 /* Apply new pose to the given bone, knowing only its new endpoints */
-static void psketch_pchan_apply_from_endpoints(Scene *scene, Object *ob,
+static void psketch_pchan_apply_from_endpoints(PSketchSettings *ps, Scene *scene, Object *ob,
                                                bPoseChannel *pchan, const size_t chain_idx,
                                                const float new_head[3], const float new_tail[3],
-                                               const bool use_offset, const bool use_stretch,
                                                const float cfra)
 {
+	const bool use_stretch = (ps->flag & PSKETCH_FLAG_USE_STRETCH) != 0;
+	const bool use_offset  = (ps->flag & PSKETCH_FLAG_USE_OFFSET) != 0;
+	
 	const short locks = pchan->protectflag;
 	float old_vec[3], new_vec[3];
 	float old_len, new_len, sfac;
@@ -533,9 +544,9 @@ static void psketch_bones_autokeyframe(bContext *C, Scene *scene, Object *ob, bP
 }
 
 /* Cleanup temp data before finishing off - even if (and especially if) nothing happened */
-static void psketch_exit_cleanup(wmOperator *op, bGPDlayer *gpl)
+static void psketch_exit_cleanup(PSketchSettings *ps, bGPDlayer *gpl)
 {
-	if (RNA_boolean_get(op->ptr, "keep_stroke") == false) {
+	if ((ps->flag & PSKETCH_FLAG_KEEP_STROKE) == 0) {
 		// XXX: instead of deleting the last one, maybe delete the previous ones that got drawn?
 		gpencil_frame_delete_laststroke(gpl, gpl->actframe);
 	}
@@ -548,6 +559,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
+	PSketchSettings *ps = psketch_settings(C);
 	const float cfra = BKE_scene_frame_get(scene);
 	
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -566,9 +578,6 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	bool reversed = NULL;
 	
 	tGPStrokePosePoint *spoints = NULL;
-	const bool use_stretch = RNA_boolean_get(op->ptr, "use_stretch");
-	const bool use_offset  = RNA_boolean_get(op->ptr, "use_offset");
-	
 	
 	/* Abort if we don't have a reference stroke */
 	if (stroke == NULL) {
@@ -578,13 +587,13 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	else if (stroke->totpoints == 1) {
 		BKE_report(op->reports, RPT_ERROR, "Stroke is unusable (i.e. it is just a dot)");
 		
-		psketch_exit_cleanup(op, gpl);
+		psketch_exit_cleanup(ps, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	else if ((stroke->flag & GP_STROKE_3DSPACE) == 0) {
 		BKE_report(op->reports, RPT_ERROR, "Stroke is unusable - it must be in 3D space (e.g. use 'Cursor' or 'Depth' alignment modes)");
 		
-		psketch_exit_cleanup(op, gpl);
+		psketch_exit_cleanup(ps, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
@@ -618,14 +627,14 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	if (num_items < 1) {
 		BKE_report(op->reports, RPT_ERROR, "Select at least one bone (or more for an even closer fit)");
 		
-		psketch_exit_cleanup(op, gpl);
+		psketch_exit_cleanup(ps, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
 	if (IS_EQ(chain_len, 0.0f)) {
 		BKE_report(op->reports, RPT_ERROR, "Zero length bone chain!");
 		
-		psketch_exit_cleanup(op, gpl);
+		psketch_exit_cleanup(ps, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
@@ -639,7 +648,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	if (ELEM(NULL, first_bone, last_bone)) {
 		BKE_report(op->reports, RPT_ERROR, "Could not find first and last bone");
 		
-		psketch_exit_cleanup(op, gpl);
+		psketch_exit_cleanup(ps, gpl);
 		return OPERATOR_CANCELLED;
 	}
 	
@@ -647,7 +656,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	/* 2) Find which end of the chain is closer to the start of the stroke.
 	 *    This joint will be mapped to the first point in the stroke, etc.
 	 */
-	if (RNA_boolean_get(op->ptr, "use_closest_end_first")) {
+	if (ps->flag & PSKETCH_FLAG_USE_CLOSEST_END_FIRST) {
 		reversed = psketch_stroke_needs_reversing(stroke, ob, first_bone, last_bone);
 	}
 	
@@ -675,10 +684,9 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 		tGPStrokePosePoint *p1 = &spoints[i];
 		tGPStrokePosePoint *p2 = &spoints[i + 1];
 		
-		psketch_pchan_apply_from_endpoints(scene, ob,
+		psketch_pchan_apply_from_endpoints(ps, scene, ob,
 		                                   pchan, i,
 		                                   p1->co, p2->co,
-		                                   use_offset, use_stretch,
                                            cfra);
 	}
 	
@@ -695,7 +703,7 @@ static int psketch_direct_exec(bContext *C, wmOperator *op)
 	MEM_freeN(spoints);
 	
 	/* Remove temp stroke data? */
-	psketch_exit_cleanup(op, gpl);
+	psketch_exit_cleanup(ps, gpl);
 	
 	return OPERATOR_FINISHED;
 }
@@ -712,17 +720,7 @@ void POSE_OT_sketch_direct(wmOperatorType *ot)
 	ot->poll = ED_operator_posemode;
 	
 	/* flags */
-	ot->flag = OPTYPE_UNDO; // XXX: needed so that changing the parameters will attempt to reapply
-	
-	/* properties */
-	// XXX: These probably need to become toolsettings...
-	RNA_def_boolean(ot->srna, "use_offset", true, "Offset Chain", "Move chain to where the stroke was drawn (disable to just reshape in place)");
-	RNA_def_boolean(ot->srna, "use_stretch", false, "Stretch to Fit", "Stretch bones to match the stroke exactly");
-	
-	RNA_def_boolean(ot->srna, "use_closest_end_first", true, "Use Closest End First", "Match the closest end of the stroke to the start of the chain");
-	
-	// XXX: maybe this should rather be to erase the previous ones, and keep the current stroke (so that we can see how closely this new stroke matched?
-	RNA_def_boolean(ot->srna, "keep_stroke", false, "Keep Stroke", "After deforming the bones, keep the sketch that was drawn");
+	ot->flag = OPTYPE_UNDO;
 }
 
 /* ***************************************************** */

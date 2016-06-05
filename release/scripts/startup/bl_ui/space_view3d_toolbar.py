@@ -864,6 +864,22 @@ class VIEW3D_PT_tools_posemode_sculpt(View3DPanel, Panel):
         layout.prop(settings, "use_select_mask")
 
 
+class VIEW3D_PT_tools_posemode_sketch(View3DPanel, Panel):
+    bl_category = "Sketch"
+    bl_context = "posemode"
+    bl_label = "Pose Sketch"
+
+    def draw(self, context):
+        layout = self.layout
+        settings = context.tool_settings.pose_sketch
+
+        # XXX
+        layout.prop(settings, "use_offset")
+        layout.prop(settings, "use_stretch")
+        layout.prop(settings, "use_closest_end_first")
+        layout.prop(settings, "keep_stroke")
+	
+
 # ********** default tools for paint modes ****************
 
 

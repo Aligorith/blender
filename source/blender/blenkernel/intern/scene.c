@@ -466,6 +466,7 @@ void BKE_scene_init(Scene *sce)
 {
 	ParticleEditSettings *pset;
 	PSculptSettings *psculpt;
+	PSketchSettings *psketch;
 	int a;
 	const char *colorspace_name;
 	SceneRenderView *srv;
@@ -671,6 +672,16 @@ void BKE_scene_init(Scene *sce)
 	psculpt->brush[PSCULPT_BRUSH_CURL].xzMode = PSCULPT_BRUSH_DO_X;
 	psculpt->brush[PSCULPT_BRUSH_GRAB].flag |= PSCULPT_BRUSH_FLAG_GRAB_INITIAL;
 	psculpt->brush[PSCULPT_BRUSH_STRETCH].flag |= PSCULPT_BRUSH_FLAG_VOL_PRESERVE;
+	
+	psketch = &sce->toolsettings->psketch;
+	const float default_psketch_color[4] = {1.0f, 0.9f, 0.4f, 0.9f};
+	copy_v3_v3(psketch->color, default_psketch_color);
+	psketch->color[3] = default_psketch_color[3];
+	psketch->thickness = 4;
+	strcpy(psketch->layer_name, "PSketch");
+	
+	psketch->flag = (PSKETCH_FLAG_USE_OFFSET | PSKETCH_FLAG_USE_CLOSEST_END_FIRST);
+
 
 	sce->r.ffcodecdata.audio_mixrate = 48000;
 	sce->r.ffcodecdata.audio_volume = 1.0f;

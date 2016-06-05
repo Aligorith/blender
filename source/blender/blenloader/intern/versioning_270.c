@@ -1061,31 +1061,52 @@ void blo_do_versions_270(FileData *fd, Library *UNUSED(lib), Main *main)
 		 *                and  blenloader/versioning_defaults.c
 		 */
 		for (scene = main->scene.first; scene; scene = scene->id.next) {
-			PSculptSettings *pset = &scene->toolsettings->psculpt;
+			PSculptSettings *psculpt = &scene->toolsettings->psculpt;
 			
-			//if (pset->brush[0].size == 0) 
+			//if (psculpt->brush[0].size == 0) 
 			{
 				int i;
 				
 				for (i = 0; i < PSCULPT_TOT_BRUSH; i++) {
-					pset->brush[i].strength = 0.5f;
-					pset->brush[i].size = 50;
-					pset->brush[i].rate = 0.01f;
-					pset->brush[i].flag = PSCULPT_BRUSH_FLAG_USE_PRESSURE | PSCULPT_BRUSH_FLAG_USE_FALLOFF;
+					psculpt->brush[i].strength = 0.5f;
+					psculpt->brush[i].size = 50;
+					psculpt->brush[i].rate = 0.01f;
+					psculpt->brush[i].flag = PSCULPT_BRUSH_FLAG_USE_PRESSURE | PSCULPT_BRUSH_FLAG_USE_FALLOFF;
 					
-					pset->brush[i].bulge = 1.0f;
-					pset->brush[i].bulge_min = 1.0f;
-					pset->brush[i].bulge_max = 1.0f;
+					psculpt->brush[i].bulge = 1.0f;
+					psculpt->brush[i].bulge_min = 1.0f;
+					psculpt->brush[i].bulge_max = 1.0f;
 				}
-				pset->brush[PSCULPT_BRUSH_SMOOTH].strength = 0.25f;
-				pset->brush[PSCULPT_BRUSH_GRAB].strength = 1.0f;
-				pset->brush[PSCULPT_BRUSH_CURL].strength = 0.25f;
-				pset->brush[PSCULPT_BRUSH_TWIST].strength = 0.25f;
-				//pset->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
-				pset->brush[PSCULPT_BRUSH_CURL].xzMode = PSCULPT_BRUSH_DO_X;
-				pset->brush[PSCULPT_BRUSH_GRAB].flag |= PSCULPT_BRUSH_FLAG_GRAB_INITIAL;
-				pset->brush[PSCULPT_BRUSH_STRETCH].flag |= PSCULPT_BRUSH_FLAG_VOL_PRESERVE;
+				psculpt->brush[PSCULPT_BRUSH_SMOOTH].strength = 0.25f;
+				psculpt->brush[PSCULPT_BRUSH_GRAB].strength = 1.0f;
+				psculpt->brush[PSCULPT_BRUSH_CURL].strength = 0.25f;
+				psculpt->brush[PSCULPT_BRUSH_TWIST].strength = 0.25f;
+				//psculpt->brush[PSCULPT_BRUSH_RESET].strength = 1.0f;
+				psculpt->brush[PSCULPT_BRUSH_CURL].xzMode = PSCULPT_BRUSH_DO_X;
+				psculpt->brush[PSCULPT_BRUSH_GRAB].flag |= PSCULPT_BRUSH_FLAG_GRAB_INITIAL;
+				psculpt->brush[PSCULPT_BRUSH_STRETCH].flag |= PSCULPT_BRUSH_FLAG_VOL_PRESERVE;
 			}
+		}
+	}
+	
+	/* Pose Sketching */
+	if (!DNA_struct_elem_find(fd->filesdna, "ToolSettings", "PSketchSettings", "psketch")) {
+		Scene *scene;
+		
+		/* init defaults for pose sculpt settings 
+		 * ! Keep in sync with blenkernel/scene.c - BKE_scene_init()
+		 *                and  blenloader/versioning_defaults.c
+		 */
+		for (scene = main->scene.first; scene; scene = scene->id.next) {
+			PSketchSettings *psketch = &scene->toolsettings->psketch;
+			const float default_psketch_color[4] = {1.0f, 0.9f, 0.4f, 0.9f};
+			
+			copy_v3_v3(psketch->color, default_psketch_color);
+			psketch->color[3] = default_psketch_color[3];
+			psketch->thickness = 4;
+			strcpy(psketch->layer_name, "PSketch");
+			
+			psketch->flag = (PSKETCH_FLAG_USE_OFFSET | PSKETCH_FLAG_USE_CLOSEST_END_FIRST);
 		}
 	}
 }
