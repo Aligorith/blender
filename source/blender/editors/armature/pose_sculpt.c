@@ -1002,8 +1002,30 @@ static void psculpt_brush_calc_trackball(tPoseSculptingOp *pso)
 }
 
 /* "Adjust" Brush - i.e. a simple rotation transform */
-static void psculpt_brush_adjust_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float UNUSED(dist))
+static void psculpt_brush_adjust_apply(tPoseSculptingOp *pso, bPoseChannel *pchan, float dist)
 {
+	/* Even though we don't use it here, the "Use Initial Only" option allows us to store
+	 * the current influence of the bone for later. Currently though, the same transform
+	 * is applied to all bones...
+	 */
+	if (pso->brush->flag & PSCULPT_BRUSH_FLAG_GRAB_INITIAL) {
+		tAffectedBone *tab = verify_bone_is_affected(pso, pchan, pso->is_first);
+		
+		/* if one couldn't be found or added, then it didn't exist the first time round,
+		 * so we shouldn't proceed (to avoid clobbering additional bones)
+		 */
+		if (tab == NULL) {
+			return;
+		}
+		else if (pso->is_first) {
+			/* store brush influence, to be used by the "inverted" mode here if the
+			 * user toggles it mid-stroke...
+			 */
+			tab->fac = psculpt_brush_calc_influence(pso, dist);
+		}
+	}
+	
+	/* Perform rotation using trackball matrix calculated earlier (before checking the bones to affect) */
 	pchan_do_rotate(pso->ob, pchan, pso->rmat);
 }
 
@@ -1076,6 +1098,28 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	float axis[3], angle;
 	float rmat[3][3];
 	
+	/* The "Use Initial Only" option allows us to keep moving a bone, even if we stray off from it */
+	float fac = psculpt_brush_calc_influence(pso, dist);
+	
+	if (pso->brush->flag & PSCULPT_BRUSH_FLAG_GRAB_INITIAL) {
+		tAffectedBone *tab = verify_bone_is_affected(pso, pchan, pso->is_first);
+		
+		/* if one couldn't be found or added, then it didn't exist the first time round,
+		 * so we shouldn't proceed (to avoid clobbering additional bones)
+		 */
+		if (tab == NULL) {
+			return;
+		}
+		else if (pso->is_first) {
+			/* store factor for later */
+			tab->fac = fac;
+		}
+		else {
+			/* use stored falloff */
+			fac = tab->fac;
+		}
+	}
+	
 	/* Compute 2D center of rotation (needed for calculating the angle)
 	 * Adapted from:
 	 *  - calculateCenter2D()
@@ -1092,8 +1136,7 @@ static void psculpt_brush_rotate_apply(tPoseSculptingOp *pso, bPoseChannel *pcha
 	/* Compute rotation angle from mouse movements
 	 * - Allow the strength of the effect to be controlled using brush strength
 	 */
-	angle  = psculpt_brush_calc_input_angle(pso, center2d);
-	angle *= psculpt_brush_calc_influence(pso, dist); 
+	angle  = psculpt_brush_calc_input_angle(pso, center2d) * fac; 
 	
 	/* Compute axis to rotate around - (i.e. the normal of the screenspace workplace) 
 	 * NOTE: viewinv not perspinv here, or else rotations are inverted
@@ -1698,6 +1741,7 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 			{
 				if (pso->invert) {
 					/* Compute rotate effect - Like normal "R" rotation */
+					// XXX: "Initial bones only option? Perhaps coupled with ignoring falloff?
 					changed = psculpt_brush_do_apply(pso, psculpt_brush_rotate_apply);
 				}
 				else {
@@ -1705,7 +1749,6 @@ static void psculpt_brush_apply(bContext *C, wmOperator *op, PointerRNA *itemptr
 					psculpt_brush_calc_trackball(pso);
 					
 					/* Apply trackball transform to bones... */
-					// TODO: if no bones affected, fall back to the ones last affected (as we may have slipped off into space)
 					changed = psculpt_brush_do_apply(pso, psculpt_brush_adjust_apply);
 				}
 				

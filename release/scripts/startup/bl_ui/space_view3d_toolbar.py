@@ -830,11 +830,12 @@ class VIEW3D_PT_tools_posemode_sculpt(View3DPanel, Panel):
         elif tool == 'RESET':
             row = layout.row(align=True)
             row.prop_enum(brush, "direction", 'ADD', text="Rest Pose")
-            row.prop_enum(brush, "direction", 'SUBTRACT', text="Keyed")
+            #row.prop_enum(brush, "direction", 'SUBTRACT', text="Keyed")
+            row.prop_enum(brush, "direction", 'SUBTRACT', text="Pre-Sculpt")
         elif tool not in ('NONE', 'GRAB', 'SMOOTH'):
             layout.row().prop(brush, "direction", expand=True)
 
-        if tool == 'GRAB':
+        if tool in ('GRAB', 'DRAW', 'ADJUST'):
             layout.prop(brush, "use_initial_only")
         if tool in ('CURL', 'STRETCH'):
             layout.row().prop(brush, "xz_mode", expand=True)
