@@ -308,7 +308,7 @@ static float psculpt_brush_calc_influence(tPoseSculptingOp *pso, float dist)
 	
 	/* use distance falloff */
 	if (brush->flag & PSCULPT_BRUSH_FLAG_USE_FALLOFF) {
-		CLAMP(dist, 0.0, 1.0f);
+		CLAMP(dist, 0.0, (float)brush->size);
 		fac *= fabsf(1.0f - dist / brush->size);
 	}
 	
