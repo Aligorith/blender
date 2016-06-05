@@ -1909,6 +1909,9 @@ static int psculpt_brush_invoke(bContext *C, wmOperator *op, const wmEvent *even
 static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	tPoseSculptingOp *pso = op->customdata;
+	
+	const float STRENGTH_DELTA = 0.05f;
+	
 	bool redraw_region = false;
 	bool redraw_toolsettings = false;
 	
@@ -1939,10 +1942,10 @@ static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event
 		/* Adjust brush settings */
 		/* FIXME: Step increments and modifier keys are hardcoded here! */
 		case WHEELUPMOUSE:
-		case PADPLUSKEY:
+		case PAGEUPKEY:
 			if (event->shift) {
 				/* increase strength */
-				pso->brush->strength += 0.05f;
+				pso->brush->strength += STRENGTH_DELTA;
 				CLAMP_MAX(pso->brush->strength, 1.0f);
 			}
 			else {
@@ -1956,10 +1959,10 @@ static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event
 			break;
 			
 		case WHEELDOWNMOUSE: 
-		case PADMINUS:
+		case PAGEDOWNKEY:
 			if (event->shift) {
 				/* decrease strength */
-				pso->brush->strength -= 0.05f;
+				pso->brush->strength -= STRENGTH_DELTA;
 				CLAMP_MIN(pso->brush->strength, 0.0f);
 			}
 			else {
@@ -1967,6 +1970,24 @@ static int psculpt_brush_modal(bContext *C, wmOperator *op, const wmEvent *event
 				pso->brush->size -= 3;
 				CLAMP_MIN(pso->brush->size, 1);
 			}
+			
+			redraw_region = true;
+			redraw_toolsettings = true;
+			break;
+			
+		case PADPLUSKEY:
+		//case PLUSKEY:
+			/* increase strength */
+			pso->brush->strength += STRENGTH_DELTA;
+			
+			redraw_region = true;
+			redraw_toolsettings = true;
+			break;
+		
+		case PADMINUS:
+		case MINUSKEY:
+			/* decrease strength */
+			pso->brush->strength -= STRENGTH_DELTA;
 			
 			redraw_region = true;
 			redraw_toolsettings = true;
