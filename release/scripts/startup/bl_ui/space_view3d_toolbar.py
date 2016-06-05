@@ -878,6 +878,7 @@ class VIEW3D_PT_tools_posemode_sketch(View3DPanel, Panel):
         layout.prop(settings, "use_offset")
         layout.prop(settings, "use_stretch")
         layout.prop(settings, "use_closest_end_first")
+        layout.prop(settings, "axis_mode", expand=True)
         layout.prop(settings, "keep_stroke")
 	
 

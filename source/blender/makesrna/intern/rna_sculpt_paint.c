@@ -1242,6 +1242,12 @@ static void rna_def_pose_sculpt(BlenderRNA *brna)
 /* While not strictly a "sculpt" mode, this is similar enough to Pose Sculpt that it'll be easier to find it here... */
 static void rna_def_pose_sketch(BlenderRNA *brna)
 {
+	static EnumPropertyItem prop_axis_mode_items[]= {
+		{PSKETCH_AXIS_ANY, "Any", 0, "Any", "Freely affect the pose along any axis"},
+		{PSKETCH_AXIS_X, "X", 0, "X", "Affect X axis only"},
+		{PSKETCH_AXIS_Z, "Z", 0, "Z", "Affect Z axis only"},
+		{0, NULL, 0, NULL, NULL}};
+	
 	StructRNA *srna;
 	PropertyRNA *prop;
 	
@@ -1265,6 +1271,12 @@ static void rna_def_pose_sketch(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_closest_end_first", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", PSKETCH_FLAG_USE_CLOSEST_END_FIRST);
 	RNA_def_property_ui_text(prop, "Use Closest End First", "Match the closest end of the stroke to the start of the chain");
+	RNA_def_property_update(prop, 0, "rna_PoseSketch_update");
+	
+	prop = RNA_def_property(srna, "axis_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "axes");
+	RNA_def_property_enum_items(prop, prop_axis_mode_items);
+	RNA_def_property_ui_text(prop, "Axis Mode", "Which axes does the stroke get mapped on to");
 	RNA_def_property_update(prop, 0, "rna_PoseSketch_update");
 	
 	/* Reference Strokes */

@@ -1018,13 +1018,14 @@ typedef struct PSketchSettings {
 	short thickness;       /* Stroke thickness */
 	
 	/* Sketch Solver Settings */
-	short flag;            /* ePSketchFlag */
-	char pad[4];
+	short flag;            /* ePSketch_Flag */
+	short axes;            /* ePSketch_AxisMode */
+	char pad[2];
 } PSketchSettings;
 
 
 /* Flags for Pose Sketching */
-typedef enum ePSketchFlag {
+typedef enum ePSketch_Flag {
 	/* Offset start of chain to line up with the stroke */
 	PSKETCH_FLAG_USE_OFFSET              = (1 << 0),
 	/* Stretch bones in chain to match the stroke exactly (but risking causing scaling issues) */
@@ -1037,7 +1038,18 @@ typedef enum ePSketchFlag {
 	PSKETCH_FLAG_KEEP_STROKE             = (1 << 3),
 	/* Remove all previous strokes on this frame (to be used with KEEP_STROKE), for seeing the last stroke without getting clutter */
 	PSKETCH_FLAG_REMOVE_PREV_STROKES     = (1 << 4),
-} ePSketchFlag;
+} ePSketch_Flag;
+
+/* Which axes can Pose Sketching effects get applied to */
+typedef enum ePSketch_AxisMode {
+	/* Any axis can be affected - Direct/Full freedom */
+	PSKETCH_AXIS_ANY = 0,
+	
+	/* X-Axis only (e.g. curling) */
+	PSKETCH_AXIS_X   = 1,
+	/* Z-Axis only (e.g. yawing) */
+	PSKETCH_AXIS_Z   = 2,
+} ePSketch_AxisMode;
 
 /* ------------------------------------------- */
 /* Pose Sculpting */

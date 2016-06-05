@@ -427,7 +427,44 @@ static void psketch_pchan_apply_from_endpoints(PSketchSettings *ps, Scene *scene
 		mul_v3_m4v3(new_vec_world, ob->obmat, new_vec);
 		
 		rotation_between_vecs_to_mat3(rmat, old_vec_world, new_vec_world);
+		
+		/* Hack: Only apply the x or z components of the rotation? */
+		// XXX: This probably needs to be happening in the stroke, or something else?
+		if (ps->axes) {
+			const short ALL_ROT_LOCKS = (OB_LOCK_ROTX | OB_LOCK_ROTY | OB_LOCK_ROTZ | OB_LOCK_ROTW);
+			
+			/* if the 4-component flag is on, disable if all the others aren't there
+			 * otherwise the following is just going to be really wrong/awkward
+			 */
+			if (locks & OB_LOCK_ROT4D) {
+				if ((locks & ALL_ROT_LOCKS) != ALL_ROT_LOCKS) {
+					/* something is still unlocked - this is weird, so let's just assume we can do whatever */
+					pchan->protectflag &= ~(OB_LOCK_ROT4D | ALL_ROT_LOCKS);
+					
+					/* add the rotation locks we want now... */
+					if (ps->axes == PSKETCH_AXIS_X)
+						pchan->protectflag |= (OB_LOCK_ROTY | OB_LOCK_ROTZ);
+					else if (ps->axes == PSKETCH_AXIS_Z)
+						pchan->protectflag |= (OB_LOCK_ROTX | OB_LOCK_ROTY);
+				}
+				else {
+					/* all locked - don't allow anything */
+				}
+			}
+			else {
+				/* add extra rotation locks */
+				if (ps->axes == PSKETCH_AXIS_X)
+					pchan->protectflag |= (OB_LOCK_ROTY | OB_LOCK_ROTZ);
+				else if (ps->axes == PSKETCH_AXIS_Z)
+					pchan->protectflag |= (OB_LOCK_ROTX | OB_LOCK_ROTY);
+			}
+		}
+		
+		/* rotate it... */
 		pchan_do_rotate(ob, pchan, rmat);
+		
+		/* reset locks, just in case we modified them here... */
+		pchan->protectflag = locks;
 		
 		/* Apply scale factor to all axes of bone... */
 		if (use_stretch) {
