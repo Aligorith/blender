@@ -34,6 +34,7 @@
 #include "WM_types.h"
 
 #include "ED_armature.h"
+#include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_transform.h"
 
@@ -395,6 +396,10 @@ void ED_keymap_armature(wmKeyConfig *keyconf)
 	/*  1) envelope/b-bone size */
 	kmi = WM_keymap_add_item(keymap, "TRANSFORM_OT_transform", SKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
 	RNA_enum_set(kmi->ptr, "mode", TFM_BONESIZE);
+	
+	/*	2) proportional editing toggles */
+	ED_keymap_proportional_cycle(keyconf, keymap);
+	ED_keymap_proportional_editmode(keyconf, keymap, true);
 	
 	/* keyframes management */
 	WM_keymap_verify_item(keymap, "ANIM_OT_keyframe_insert_menu", IKEY, KM_PRESS, 0, 0);
