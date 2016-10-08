@@ -2071,6 +2071,10 @@ class VIEW3D_MT_pose(Menu):
 
         layout.separator()
 
+        layout.menu("VIEW3D_MT_edit_proportional")
+
+        layout.separator()
+
         layout.menu("VIEW3D_MT_pose_showhide")
         layout.menu("VIEW3D_MT_bone_options_toggle", text="Bone Settings")
 
