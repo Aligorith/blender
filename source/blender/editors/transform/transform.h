@@ -646,7 +646,7 @@ int  special_transform_moving(TransInfo *t);
 void transform_autoik_update(TransInfo *t, short mode);
 bool transdata_check_local_islands(TransInfo *t, short around);
 
-int count_set_pose_transflags(int *out_mode, short around, struct Object *ob);
+int count_set_pose_transflags(int *out_mode, short around, struct Object *ob, bool is_prop_edit);
 
 /* auto-keying stuff used by special_aftertrans_update */
 void autokeyframe_ob_cb_func(struct bContext *C, struct Scene *scene, struct View3D *v3d, struct Object *ob, int tmode);

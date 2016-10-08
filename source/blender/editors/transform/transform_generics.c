@@ -1394,6 +1394,9 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 					else if (t->obedit == NULL && ts->proportional_objects) {
 						t->flag |= T_PROP_EDIT;
 					}
+					else if (ob && (ob->mode & OB_MODE_POSE)) {
+						t->flag |= initTransInfo_edit_pet_to_flag(ts->proportional);
+					}
 				}
 			}
 		}

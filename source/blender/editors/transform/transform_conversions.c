@@ -532,7 +532,12 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 	copy_v3_v3(td->center, vec);
 
 	td->ob = ob;
-	td->flag = TD_SELECTED;
+	td->flag = 0;
+	
+	if (bone->flag & BONE_SELECTED) {
+		td->flag = TD_SELECTED;
+	}
+	
 	if (bone->flag & BONE_HINGE_CHILD_TRANSFORM) {
 		td->flag |= TD_NOCENTER;
 	}
@@ -695,7 +700,7 @@ static void bone_children_clear_transflag(int mode, short around, ListBase *lb)
 
 /* sets transform flags in the bones
  * returns total number of bones with BONE_TRANSFORM */
-int count_set_pose_transflags(int *out_mode, short around, Object *ob)
+int count_set_pose_transflags(int *out_mode, short around, Object *ob, bool is_prop_edit)
 {
 	bArmature *arm = ob->data;
 	bPoseChannel *pchan;
@@ -706,7 +711,7 @@ int count_set_pose_transflags(int *out_mode, short around, Object *ob)
 	for (pchan = ob->pose->chanbase.first; pchan; pchan = pchan->next) {
 		bone = pchan->bone;
 		if (PBONE_VISIBLE(arm, bone)) {
-			if ((bone->flag & BONE_SELECTED))
+			if (is_prop_edit || (bone->flag & BONE_SELECTED))
 				bone->flag |= BONE_TRANSFORM;
 			else
 				bone->flag &= ~BONE_TRANSFORM;
@@ -1037,6 +1042,7 @@ static void createTransPose(TransInfo *t, Object *ob)
 	bPoseChannel *pchan;
 	TransData *td;
 	TransDataExtension *tdx;
+	const bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
 	short ik_on = 0;
 	int i;
 
@@ -1060,7 +1066,7 @@ static void createTransPose(TransInfo *t, Object *ob)
 	}
 
 	/* set flags and count total (warning, can change transform to rotate) */
-	t->total = count_set_pose_transflags(&t->mode, t->around, ob);
+	t->total = count_set_pose_transflags(&t->mode, t->around, ob, is_prop_edit);
 
 	if (t->total == 0) return;
 
@@ -1068,7 +1074,7 @@ static void createTransPose(TransInfo *t, Object *ob)
 	t->poseobj = ob; /* we also allow non-active objects to be transformed, in weightpaint */
 
 	/* disable PET, its not usable in pose mode yet [#32444] */
-	t->flag &= ~T_PROP_EDIT_ALL;
+	//t->flag &= ~T_PROP_EDIT_ALL;
 
 	/* init trans data */
 	td = t->data = MEM_callocN(t->total * sizeof(TransData), "TransPoseBone");
@@ -6268,6 +6274,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 		bArmature *arm;
 		bPoseChannel *pchan;
 		short targetless_ik = 0;
+		bool is_prop_edit = (t->flag & T_PROP_EDIT) != 0;
 
 		ob = t->poseobj;
 		arm = ob->data;
@@ -6282,7 +6289,7 @@ void special_aftertrans_update(bContext *C, TransInfo *t)
 
 		/* set BONE_TRANSFORM flags for autokey, manipulator draw might have changed them */
 		if (!canceled && (t->mode != TFM_DUMMY))
-			count_set_pose_transflags(&t->mode, t->around, ob);
+			count_set_pose_transflags(&t->mode, t->around, ob, is_prop_edit);
 
 		/* if target-less IK grabbing, we calculate the pchan transforms and clear flag */
 		if (!canceled && t->mode == TFM_TRANSLATION)
@@ -8054,6 +8061,12 @@ void createTransData(bContext *C, TransInfo *t)
 		// XXX this is currently limited to active armature only...
 		// XXX active-layer checking isn't done as that should probably be checked through context instead
 		createTransPose(t, ob);
+		
+		if ((t->flag & T_PROP_EDIT)) {
+			sort_trans_data(t); // makes selected become first in array
+			set_prop_dist(t, 1);
+			sort_trans_data_dist(t);
+		}
 	}
 	else if (ob && (ob->mode & OB_MODE_WEIGHT_PAINT) && !(t->options & CTX_PAINT_CURVE)) {
 		/* important that ob_armature can be set even when its not selected [#23412]
