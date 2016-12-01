@@ -1975,7 +1975,7 @@ typedef enum eGP_ReprojectModes {
 	/* On same plane, parallel to viewplane */
 	GP_REPROJECT_PLANAR = 0,
 	/* Reprojected on to the scene geometry */
-	GP_REPROJECT_GEOMETRY,
+	GP_REPROJECT_SURFACE,
 } eGP_ReprojectModes;
 
 static int gp_strokes_reproject_poll(bContext *C)
@@ -1997,7 +1997,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 	gp_point_conversion_init(C, &gsc);
 	
 	/* init autodist for geometry projection */
-	if (mode == GP_REPROJECT_GEOMETRY) {
+	if (mode == GP_REPROJECT_SURFACE) {
 		view3d_region_operator_needs_opengl(CTX_wm_window(C), gsc.ar);
 		ED_view3d_autodist_init(scene, gsc.ar, CTX_wm_view3d(C), 0);
 	}
@@ -2080,8 +2080,8 @@ void GPENCIL_OT_reproject(wmOperatorType *ot)
 		{GP_REPROJECT_PLANAR, "PLANAR", 0, "Planar", 
 		 "Reproject the strokes to end up on the same plane, as if drawn from the current viewpoint "
 		 "using 'Cursor' Stroke Placement"},
-		{GP_REPROJECT_GEOMETRY, "GEOMETRY", 0, "Geometry",
-		 "Reproject the strokes on to the scene geometry"},
+		{GP_REPROJECT_SURFACE, "SURFACE", 0, "Surface",
+		 "Reproject the strokes on to the scene geometry, as if drawn using 'Surface' placement"},
 		{0, NULL, 0, NULL, NULL}
 	};
 	
